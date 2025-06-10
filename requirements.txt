@@ -1,0 +1,9 @@
+ipywidgets
+ipykernel
+matplotlib
+numpy
+seaborn
+scipy
+scikit-learn
+torchvision
+tqdm
