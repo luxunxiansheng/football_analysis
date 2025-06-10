@@ -2,8 +2,12 @@ ipywidgets
 ipykernel
 matplotlib
 numpy
+opencv-python
+pandas
 seaborn
 scipy
 scikit-learn
+supervision
 torchvision
 tqdm
+ultralytics
