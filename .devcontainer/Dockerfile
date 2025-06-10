@@ -3,17 +3,12 @@ FROM rayproject/ray:latest-gpu
 # Switch to root user for installation and setup
 USER root
 
-# Create binli user with a different UID to avoid conflicts
-RUN groupadd -g 1001 binli && \
-    useradd -u 1001 -g 1001 -m -s /bin/bash binli && \
-    usermod -aG sudo binli && \
-    echo 'binli ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
 # Copy environment.yml (if found) to a temp location so we update the environment. Also
 # copy "noop.txt" so the COPY instruction does not fail if no environment.yml exists.
 COPY environment.yml* .devcontainer/noop.txt /tmp/conda-tmp/
-RUN if [ -f "/tmp/conda-tmp/environment.yml" ]; then umask 0002 && /opt/conda/bin/conda env update -n base -f /tmp/conda-tmp/environment.yml; fi \
-    && rm -rf /tmp/conda-tmp
+RUN chmod -R 755 /tmp/conda-tmp && \
+    if [ -f "/tmp/conda-tmp/environment.yml" ]; then umask 0002 && /opt/conda/bin/conda env update -n base -f /tmp/conda-tmp/environment.yml; fi && \
+    rm -rf /tmp/conda-tmp
 
 # Add Chinese mirror sources for faster downloads - detect Ubuntu version from /etc/os-release
 RUN UBUNTU_CODENAME=$(grep VERSION_CODENAME /etc/os-release | cut -d= -f2 | tr -d '"' || echo "jammy") && \
@@ -73,17 +68,17 @@ RUN if [ -f "/tmp/pip-tmp/requirements.txt" ]; then \
     fi \
     && rm -rf /tmp/pip-tmp
 
-# Give binli user access to conda and set up environment - find conda path dynamically
+# Set up conda environment for development
 RUN CONDA_PATH=$(which conda 2>/dev/null | xargs dirname | xargs dirname || echo "/opt/conda") && \
     if [ -d "$CONDA_PATH" ]; then \
-        chown -R binli:binli "$CONDA_PATH" && \
-        echo "export PATH=\"$CONDA_PATH/bin:\$PATH\"" >> /home/binli/.bashrc && \
-        echo "source $CONDA_PATH/etc/profile.d/conda.sh" >> /home/binli/.bashrc; \
+        echo "Conda found at $CONDA_PATH" && \
+        echo "export PATH=\"$CONDA_PATH/bin:\$PATH\"" >> /root/.bashrc && \
+        echo "source $CONDA_PATH/etc/profile.d/conda.sh" >> /root/.bashrc; \
     else \
         echo "Warning: Conda directory not found at $CONDA_PATH"; \
     fi
 
-# Switch to binli user
-USER binli
+# Stay as root user for development (simpler and avoids permission issues)
+# USER root is already active
 
 

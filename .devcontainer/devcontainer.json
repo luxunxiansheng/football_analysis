@@ -17,6 +17,8 @@
 		"no_proxy": "${localEnv:no_proxy}"
 	  },
 
+	"postCreateCommand": "git config --global user.email ornot2008@yahoo.com && git config --global user.name ornot-devcontainer",  
+
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -38,7 +40,6 @@
 		}
 	},
 
-	"postCreateCommand": "git config --global user.email ornot2008@yahoo.com && git config --global user.name ornot-devcontainer",
 
-	"remoteUser": "binli"
+
 }
