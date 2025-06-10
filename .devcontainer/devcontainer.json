@@ -8,6 +8,7 @@
 	"runArgs": [
 		"--runtime=nvidia",
 		"--gpus=all",
+		"--shm-size=10g",
 		"--network", "host"
 	  ],
 

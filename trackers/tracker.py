@@ -52,7 +52,7 @@ class Tracker:
                 tracks = pickle.load(f)
             return tracks
 
-        detections = self.detect_frames(frames)
+        detections = self.detect_frames(frames)    
 
         tracks={
             "players":[],
