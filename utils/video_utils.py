@@ -36,7 +36,7 @@ def save_video(
     output_video_frames: List[np.ndarray],
     output_video_path: str,
     fps: int = 24,
-    codec: str = "XVID",
+    codec: str = "mp4v",
 ) -> None:
     """
     Save a list of frames as a video file.
