@@ -18,7 +18,7 @@ RUN UBUNTU_CODENAME=$(grep VERSION_CODENAME /etc/os-release | cut -d= -f2 | tr -
     echo "deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${UBUNTU_CODENAME}-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
     echo "deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${UBUNTU_CODENAME}-security main restricted universe multiverse" >> /etc/apt/sources.list
 
-# Install required system dependencies for matplotlib and other Python packages
+# Install required system dependencies for matplotlib, OpenCV, and H.264 codec support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     pkg-config \
@@ -29,6 +29,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2-dev \
     libffi-dev \
     python3-dev \
+    # H.264 codec and video processing dependencies
+    libx264-dev \
+    libx265-dev \
+    libvpx-dev \
+    libfdk-aac-dev \
+    libmp3lame-dev \
+    libopus-dev \
+    # FFmpeg with H.264 support
+    ffmpeg \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libavresample-dev \
+    # Additional video processing libraries
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libgtk-3-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libdc1394-22-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -38,4 +60,8 @@ RUN if [ -f "/tmp/requirements.txt" ]; then \
     pip install --no-cache-dir -r /tmp/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple; \
     fi && \
     rm -rf /tmp/requirements.txt
+
+# Verify H.264 codec support
+RUN python3 -c "import cv2; print('OpenCV version:', cv2.__version__); fourcc = cv2.VideoWriter_fourcc(*'H264'); print('H264 codec available:', fourcc is not None)"
+
 # Install additional Python packages
