@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libavformat-dev \
     libavutil-dev \
     libswscale-dev \
-    libavresample-dev \
+    libswresample-dev \
     # Additional video processing libraries
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
@@ -50,18 +50,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
-    libdc1394-22-dev \
+    libdc1394-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # install required Python packages from requirements.txt
 COPY requirements.txt /tmp/requirements.txt
 RUN if [ -f "/tmp/requirements.txt" ]; then \
-    pip install --no-cache-dir -r /tmp/requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple; \
+    (pip install --no-cache-dir -r /tmp/requirements.txt \
+        -i https://pypi.douban.com/simple \
+        --trusted-host pypi.douban.com || \
+     pip install --no-cache-dir -r /tmp/requirements.txt \
+        -i https://mirrors.aliyun.com/pypi/simple \
+        --trusted-host mirrors.aliyun.com || \
+     pip install --no-cache-dir -r /tmp/requirements.txt); \
     fi && \
     rm -rf /tmp/requirements.txt
 
-# Verify H.264 codec support
-RUN python3 -c "import cv2; print('OpenCV version:', cv2.__version__); fourcc = cv2.VideoWriter_fourcc(*'H264'); print('H264 codec available:', fourcc is not None)"
-
-# Install additional Python packages
