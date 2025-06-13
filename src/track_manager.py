@@ -1,21 +1,28 @@
 import os
 import pickle
 import sys
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+import pandas as pd
 
+from sympy import N
 from ultralytics import YOLO
 import supervision as sv
-
 
 # Local application imports
 sys.path.append("../")
 from camera_movement_estimator import CameraMovementEstimator
 from team_assigner import TeamAssigner
 from player_ball_assigner import PlayerBallAssigner
-from utils.bbox_utils import get_center_of_bbox, get_bbox_width, get_foot_position
+from view_transformer import ViewTransformer
+from utils.bbox_utils import (
+    get_center_of_bbox,
+    get_bbox_width,
+    get_foot_position,
+    measure_distance,
+)
 
 
 class TrackManager:
@@ -25,15 +32,23 @@ class TrackManager:
         team_assigner: TeamAssigner,
         player_ball_assigner: PlayerBallAssigner,
         camera_movement_estimator: CameraMovementEstimator,
+        view_transformer: ViewTransformer,
+        frame_window: int = 5,
+        frame_rate: int = 24,
     ):
         self.model: YOLO = YOLO(model_path)
         self.frames = None
         self.tracks = {"players": [], "referees": [], "ball": []}
         self.camera_movement_per_frame = None
+        self.team_ball_control = None
 
         self.team_assigner = team_assigner
         self.player_ball_assigner = player_ball_assigner
         self.camera_movement_estimator = camera_movement_estimator
+        self.view_transformer = view_transformer
+
+        self.frame_window = frame_window
+        self.frame_rate = frame_rate
 
     def initialize(
         self,
@@ -93,9 +108,7 @@ class TrackManager:
             with open(stub_path, "wb") as f:
                 pickle.dump(self.tracks, f)
 
-    def assign_team_colors(
-        self,
-    ) -> None:
+    def assign_team_colors(self) -> None:
         """
         Assign team colors to players based on their jersey colors.
         Uses K-means clustering to determine the dominant jersey colors and assigns
@@ -106,9 +119,13 @@ class TrackManager:
             player_detections (List[dict]): List of player detection dictionaries
         """
         if self.frames is not None and len(self.frames) > 0:
-            self.team_assigner.assign_team_color(
-                self.frames[0], self.tracks["players"][0]
-            )
+            self.team_assigner.assign_team_color(self.frames[0], self.tracks["players"][0])
+            for frame_num, player_track in enumerate(self.tracks["players"]):
+                for player_id, track in player_track.items():
+                    team = self.team_assigner.get_player_team(self.frames[frame_num], track["bbox"], player_id)
+                    self.tracks["players"][frame_num][player_id]["team"] = team
+                    self.tracks["players"][frame_num][player_id]["team_color"] = (self.team_assigner.team_colors[team])
+        
         else:
             print("Warning: No frames available for team color assignment")
 
@@ -124,18 +141,11 @@ class TrackManager:
                     self.tracks[object][frame_num][track_id]["position"] = position
 
     def add_adjust_positions_to_tracks(self) -> None:
-
         if self.frames is None:
             raise ValueError("Frames must be initialized before adjusting positions")
 
-        self.camera_movement_per_frame = (
-            self.camera_movement_estimator.get_camera_movement(
-                self.frames,
-                read_from_stub=True,
-               
-            )
-        )
-
+        self.camera_movement_per_frame = self.camera_movement_estimator.get_camera_movement(self.frames,read_from_stub=True)
+        
         for object_type, object_tracks in self.tracks.items():
             for frame_num, track in enumerate(object_tracks):
                 for track_id, track_info in track.items():
@@ -147,134 +157,106 @@ class TrackManager:
                         position[0] - camera_movement[0],
                         position[1] - camera_movement[1],
                     )
-                    self.tracks[object_type][frame_num][track_id][
-                        "position_adjusted"
-                    ] = position_adjusted
+                    self.tracks[object_type][frame_num][track_id]["position_adjusted"] = position_adjusted
 
-    def assign_ball_to_players(self) -> None:
-        self.player_ball_assigner.assign_ball_to_player(
-            self.tracks["players"][0], self.tracks["ball"][0][1]["bbox"]
+    def assign_ball_to_players(self) -> None:        
+        team_ball_control = []
+        for frame_num, player_track in enumerate(self.tracks["players"]):
+            ball_bbox = self.tracks["ball"][frame_num][1]["bbox"]
+            assigned_player = self.player_ball_assigner.assign_ball_to_player(
+                player_track, ball_bbox
+            )
+
+            if assigned_player != -1:
+                self.tracks["players"][frame_num][assigned_player]["has_ball"] = True
+                team_ball_control.append(
+                    self.tracks["players"][frame_num][assigned_player]["team"]
+                )
+            else:
+                team_ball_control.append(team_ball_control[-1])
+        self.team_ball_control = np.array(team_ball_control)
+
+    def add_transformed_position_to_tracks(self) -> None:
+        
+        for object, object_tracks in self.tracks.items():
+            for frame_num, track in enumerate(object_tracks):
+                for track_id, track_info in track.items():
+                    position = track_info["position_adjusted"]
+                    position = np.array(position)
+                    position_transformed = self.view_transformer.transform_point(position)
+                    if position_transformed is not None:
+                        position_transformed = position_transformed.squeeze().tolist()
+                    
+                    self.tracks[object][frame_num][track_id]["position_transformed"] = position_transformed
+
+    def interpolate_ball_positions(self) -> None:
+        ball_positions = [x.get(1, {}).get("bbox", []) for x in self.tracks["ball"]]
+        df_ball_positions = pd.DataFrame(
+            ball_positions, columns=["x1", "y1", "x2", "y2"]
         )
 
-    def draw_camera_movement(
-        self, frames: List[np.ndarray], camera_movement_per_frame: List[List[float]]
-    ) -> List[np.ndarray]:
-        """
-        Draw camera movement information on frames.
+        # Interpolate missing values
+        df_ball_positions = df_ball_positions.interpolate()
+        df_ball_positions = df_ball_positions.bfill()
 
-        Args:
-            frames: List of video frames as numpy arrays
-            camera_movement_per_frame: List of [x, y] camera movements per frame
+        ball_positions = [
+            {1: {"bbox": x}} for x in df_ball_positions.to_numpy().tolist()
+        ]
 
-        Returns:
-            List of frames with camera movement information overlaid
-        """
-        output_frames: List[np.ndarray] = []
+        self.tracks["ball"] = ball_positions
 
-        for frame_num, frame in enumerate(frames):
-            frame = frame.copy()
+    def add_speed_and_distance_to_tracks(self) -> None:
 
-            # Create semi-transparent overlay for text background
-            overlay: np.ndarray = frame.copy()
-            cv2.rectangle(overlay, (0, 0), (500, 100), (255, 255, 255), -1)
-            alpha: float = 0.6
-            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+        total_distance: Dict[str, Dict[str, float]] = {}
 
-            # Add camera movement text
-            x_movement, y_movement = camera_movement_per_frame[frame_num]
-            frame = cv2.putText(
-                frame,
-                f"Camera Movement X: {x_movement:.2f}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 0, 0),
-                3,
-            )
-            frame = cv2.putText(
-                frame,
-                f"Camera Movement Y: {y_movement:.2f}",
-                (10, 60),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 0, 0),
-                3,
-            )
+        for object_type, object_tracks in self.tracks.items():
+            if object_type == "ball" or object_type == "referees":
+                continue
 
-            output_frames.append(frame)
+            number_of_frames = len(object_tracks)
+            for frame_num in range(0, number_of_frames, self.frame_window):
+                last_frame = min(frame_num + self.frame_window, number_of_frames - 1)
 
-        return output_frames
-        for frame_num, frame in enumerate(frames):
-            frame = frame.copy()
+                for track_id, _ in object_tracks[frame_num].items():
+                    if track_id not in object_tracks[last_frame]:
+                        continue
 
-            # Create semi-transparent overlay for text background
-            overlay: np.ndarray = frame.copy()
-            cv2.rectangle(
-                overlay,
-                (0, 0),
-                (self.overlay_width, self.overlay_height),
-                self.overlay_color,
-                -1,
-            )
-            cv2.addWeighted(
-                overlay, self.overlay_alpha, frame, 1 - self.overlay_alpha, 0, frame
-            )
+                    start_position = object_tracks[frame_num][track_id][
+                        "position_transformed"
+                    ]
+                    end_position = object_tracks[last_frame][track_id][
+                        "position_transformed"
+                    ]
 
-            # Add camera movement text
-            x_movement, y_movement = camera_movement_per_frame[frame_num]
-            frame = cv2.putText(
-                frame,
-                f"Camera Movement X: {x_movement:.2f}",
-                (self.text_x_pos, self.text_y_pos_1),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                self.text_scale,
-                self.text_color,
-                self.text_thickness,
-            )
-            frame = cv2.putText(
-                frame,
-                f"Camera Movement Y: {y_movement:.2f}",
-                (self.text_x_pos, self.text_y_pos_2),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                self.text_scale,
-                self.text_color,
-                self.text_thickness,
-            )
+                    if start_position is None or end_position is None:
+                        continue
 
-            output_frames.append(frame)
+                    distance_covered = measure_distance(start_position, end_position)
+                    time_elapsed = (last_frame - frame_num) / self.frame_rate
+                    speed_meters_per_second = distance_covered / time_elapsed
+                    speed_km_per_hour = speed_meters_per_second * 3.6
 
-        return output_frames
+                    if object_type not in total_distance:
+                        total_distance[object_type] = {}
 
-    def _draw_team_ball_control(
-        self,
-        frame: np.ndarray,
-        frame_num: int,
-        team_ball_control: List[int],
-    ) -> np.ndarray:
-        """
-        Draw the team ball control information on the frame.
+                    if track_id not in total_distance[object_type]:
+                        total_distance[object_type][track_id] = 0
 
-        Args:
-            frame (np.ndarray): The current video frame
-            frame_num (int): The current frame number
-            team_ball_control (List[int]): List indicating which team has ball control
-                                           (1 for Team 1, 2 for Team 2)
+                    total_distance[object_type][track_id] += distance_covered
 
-        Returns:
-            np.ndarray: The frame with team ball control information drawn
-        """
-        for track_id, player in self.tracks["players"][frame_num].items():
-            if player.get("has_ball", False):
-                team = team_ball_control[frame_num]
-                color = (0, 255, 0) if team == 1 else (255, 0, 0)
-                frame = self._draw_ellipse(frame, player["bbox"], color, track_id)
+                    for frame_num_batch in range(frame_num, last_frame):
+                        if track_id not in self.tracks[object_type][frame_num_batch]:
+                            continue
+                        self.tracks[object_type][frame_num_batch][track_id][
+                            "speed"
+                        ] = speed_km_per_hour
+                        self.tracks[object_type][frame_num_batch][track_id][
+                            "distance"
+                        ] = total_distance[object_type][track_id]
 
-        return frame
-
-    def draw_annotations(
-        self,
-    ) -> List[np.ndarray]:
-
+ 
+    
+    def draw_annotations(self) -> List[np.ndarray]:
         output_video_frames = []
         for frame_num, frame in enumerate(self.frames):
             frame = frame.copy()
@@ -300,7 +282,7 @@ class TrackManager:
                 frame = self._draw_traingle(frame, ball["bbox"], (0, 255, 0))
 
             # Draw Team Ball Control
-            # frame = self._draw_team_ball_control(frame, frame_num, team_ball_control)
+            frame = self._draw_team_ball_control(frame, frame_num, self.team_ball_control)
 
             output_video_frames.append(frame)
 
@@ -548,3 +530,87 @@ class TrackManager:
         )
 
         return frame
+
+    def _draw_team_ball_control(
+        self,
+        frame: np.ndarray,
+        frame_num: int,
+        team_ball_control: List[int],
+    ) -> np.ndarray:
+        """
+        Draw the team ball control information on the frame.
+
+        Args:
+            frame (np.ndarray): The current video frame
+            frame_num (int): The current frame number
+            team_ball_control (List[int]): List indicating which team has ball control
+                                           (1 for Team 1, 2 for Team 2)
+
+        Returns:
+            np.ndarray: The frame with team ball control information drawn
+        """
+        for track_id, player in self.tracks["players"][frame_num].items():
+            if player.get("has_ball", False):
+                team = team_ball_control[frame_num]
+                color = (0, 255, 0) if team == 1 else (255, 0, 0)
+                frame = self._draw_ellipse(frame, player["bbox"], color, track_id)
+
+        return frame
+
+    def _draw_speed_and_distance(
+        self,
+        frames: List[np.ndarray],
+        tracks: Dict[str, List[Dict[str, Dict[str, Any]]]],
+    ) -> List[np.ndarray]:
+        """
+        Draw speed and distance information on video frames.
+
+        This method overlays speed (km/h) and cumulative distance (meters) text on each frame
+        for tracked objects that have speed data available.
+
+        Args:
+            frames (List[np.ndarray]): List of video frames as numpy arrays
+            tracks (Dict[str, List[Dict[str, Dict[str, Any]]]]): Tracking data containing speed and distance info
+
+        Returns:
+            List[np.ndarray]: List of frames with speed and distance annotations drawn
+        """
+        output_frames = []
+        for frame_num, frame in enumerate(frames):
+            for object_type, object_tracks in tracks.items():
+                if object_type == "ball" or object_type == "referees":
+                    continue
+                for _, track_info in object_tracks[frame_num].items():
+                    if "speed" in track_info:
+                        speed = track_info.get("speed", None)
+                        distance = track_info.get("distance", None)
+                        if speed is None or distance is None:
+                            continue
+
+                        bbox = track_info["bbox"]
+                        position = get_foot_position(bbox)
+                        position = list(position)
+                        position[1] += 40
+
+                        position = tuple(map(int, position))
+                        cv2.putText(
+                            frame,
+                            f"{speed:.2f} km/h",
+                            position,
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            (0, 0, 0),
+                            2,
+                        )
+                        cv2.putText(
+                            frame,
+                            f"{distance:.2f} m",
+                            (position[0], position[1] + 20),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            (0, 0, 0),
+                            2,
+                        )
+            output_frames.append(frame)
+
+        return output_frames

@@ -50,9 +50,7 @@ def main():
 
     for frame_num, player_track in enumerate(tracks["players"]):
         for player_id, track in player_track.items():
-            team = team_assigner.get_player_team(
-                video_frames[frame_num], track["bbox"], player_id
-            )
+            team = team_assigner.get_player_team(video_frames[frame_num], track["bbox"], player_id)
             tracks["players"][frame_num][player_id]["team"] = team
             tracks["players"][frame_num][player_id]["team_color"] = (
                 team_assigner.team_colors[team]
