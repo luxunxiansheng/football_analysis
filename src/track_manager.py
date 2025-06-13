@@ -12,6 +12,7 @@ import supervision as sv
 
 # Local application imports
 sys.path.append("../")
+from camera_movement_estimator import CameraMovementEstimator
 from team_assigner import TeamAssigner
 from player_ball_assigner import PlayerBallAssigner
 from utils.bbox_utils import get_center_of_bbox, get_bbox_width, get_foot_position
@@ -23,12 +24,16 @@ class TrackManager:
         model_path: str,
         team_assigner: TeamAssigner,
         player_ball_assigner: PlayerBallAssigner,
+        camera_movement_estimator: CameraMovementEstimator,
     ):
         self.model: YOLO = YOLO(model_path)
         self.frames = None
         self.tracks = {"players": [], "referees": [], "ball": []}
+        self.camera_movement_per_frame = None
+
         self.team_assigner = team_assigner
         self.player_ball_assigner = player_ball_assigner
+        self.camera_movement_estimator = camera_movement_estimator
 
     def initialize(
         self,
@@ -107,14 +112,140 @@ class TrackManager:
         else:
             print("Warning: No frames available for team color assignment")
 
-    def assign_ball_to_players(
-        self,
-     
-    ) -> None:
-        self.player_ball_assigner.assign_ball_to_players(
+    def add_positions_to_tracks(self) -> None:
+        for object, object_tracks in self.tracks.items():
+            for frame_num, track in enumerate(object_tracks):
+                for track_id, track_info in track.items():
+                    bbox = track_info["bbox"]
+                    if object == "ball":
+                        position = get_center_of_bbox(bbox)
+                    else:
+                        position = get_foot_position(bbox)
+                    self.tracks[object][frame_num][track_id]["position"] = position
+
+    def add_adjust_positions_to_tracks(self) -> None:
+
+        if self.frames is None:
+            raise ValueError("Frames must be initialized before adjusting positions")
+
+        self.camera_movement_per_frame = (
+            self.camera_movement_estimator.get_camera_movement(
+                self.frames,
+                read_from_stub=True,
+               
+            )
+        )
+
+        for object_type, object_tracks in self.tracks.items():
+            for frame_num, track in enumerate(object_tracks):
+                for track_id, track_info in track.items():
+                    position: Tuple[float, float] = track_info["position"]
+                    camera_movement: List[float] = self.camera_movement_per_frame[
+                        frame_num
+                    ]
+                    position_adjusted: Tuple[float, float] = (
+                        position[0] - camera_movement[0],
+                        position[1] - camera_movement[1],
+                    )
+                    self.tracks[object_type][frame_num][track_id][
+                        "position_adjusted"
+                    ] = position_adjusted
+
+    def assign_ball_to_players(self) -> None:
+        self.player_ball_assigner.assign_ball_to_player(
             self.tracks["players"][0], self.tracks["ball"][0][1]["bbox"]
         )
-    def draw_team_ball_control(
+
+    def draw_camera_movement(
+        self, frames: List[np.ndarray], camera_movement_per_frame: List[List[float]]
+    ) -> List[np.ndarray]:
+        """
+        Draw camera movement information on frames.
+
+        Args:
+            frames: List of video frames as numpy arrays
+            camera_movement_per_frame: List of [x, y] camera movements per frame
+
+        Returns:
+            List of frames with camera movement information overlaid
+        """
+        output_frames: List[np.ndarray] = []
+
+        for frame_num, frame in enumerate(frames):
+            frame = frame.copy()
+
+            # Create semi-transparent overlay for text background
+            overlay: np.ndarray = frame.copy()
+            cv2.rectangle(overlay, (0, 0), (500, 100), (255, 255, 255), -1)
+            alpha: float = 0.6
+            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+
+            # Add camera movement text
+            x_movement, y_movement = camera_movement_per_frame[frame_num]
+            frame = cv2.putText(
+                frame,
+                f"Camera Movement X: {x_movement:.2f}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 0),
+                3,
+            )
+            frame = cv2.putText(
+                frame,
+                f"Camera Movement Y: {y_movement:.2f}",
+                (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 0),
+                3,
+            )
+
+            output_frames.append(frame)
+
+        return output_frames
+        for frame_num, frame in enumerate(frames):
+            frame = frame.copy()
+
+            # Create semi-transparent overlay for text background
+            overlay: np.ndarray = frame.copy()
+            cv2.rectangle(
+                overlay,
+                (0, 0),
+                (self.overlay_width, self.overlay_height),
+                self.overlay_color,
+                -1,
+            )
+            cv2.addWeighted(
+                overlay, self.overlay_alpha, frame, 1 - self.overlay_alpha, 0, frame
+            )
+
+            # Add camera movement text
+            x_movement, y_movement = camera_movement_per_frame[frame_num]
+            frame = cv2.putText(
+                frame,
+                f"Camera Movement X: {x_movement:.2f}",
+                (self.text_x_pos, self.text_y_pos_1),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                self.text_scale,
+                self.text_color,
+                self.text_thickness,
+            )
+            frame = cv2.putText(
+                frame,
+                f"Camera Movement Y: {y_movement:.2f}",
+                (self.text_x_pos, self.text_y_pos_2),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                self.text_scale,
+                self.text_color,
+                self.text_thickness,
+            )
+
+            output_frames.append(frame)
+
+        return output_frames
+
+    def _draw_team_ball_control(
         self,
         frame: np.ndarray,
         frame_num: int,
@@ -136,7 +267,7 @@ class TrackManager:
             if player.get("has_ball", False):
                 team = team_ball_control[frame_num]
                 color = (0, 255, 0) if team == 1 else (255, 0, 0)
-                frame = self.draw_ellipse(frame, player["bbox"], color, track_id)
+                frame = self._draw_ellipse(frame, player["bbox"], color, track_id)
 
         return frame
 
@@ -155,21 +286,21 @@ class TrackManager:
             # Draw Players
             for track_id, player in player_dict.items():
                 color = player.get("team_color", (0, 0, 255))
-                frame = self.draw_ellipse(frame, player["bbox"], color, track_id)
+                frame = self._draw_ellipse(frame, player["bbox"], color, track_id)
 
                 if player.get("has_ball", False):
-                    frame = self.draw_traingle(frame, player["bbox"], (0, 0, 255))
+                    frame = self._draw_traingle(frame, player["bbox"], (0, 0, 255))
 
             # Draw Referee
             for _, referee in referee_dict.items():
-                frame = self.draw_ellipse(frame, referee["bbox"], (0, 255, 255))
+                frame = self._draw_ellipse(frame, referee["bbox"], (0, 255, 255))
 
             # Draw ball
             for track_id, ball in ball_dict.items():
-                frame = self.draw_traingle(frame, ball["bbox"], (0, 255, 0))
+                frame = self._draw_traingle(frame, ball["bbox"], (0, 255, 0))
 
             # Draw Team Ball Control
-            frame = self.draw_team_ball_control(frame, frame_num, team_ball_control)
+            # frame = self._draw_team_ball_control(frame, frame_num, team_ball_control)
 
             output_video_frames.append(frame)
 
@@ -199,7 +330,7 @@ class TrackManager:
             detections += detections_batch
         return detections
 
-    def draw_ellipse(
+    def _draw_ellipse(
         self,
         frame: np.ndarray,
         bbox: List[float],
@@ -273,7 +404,7 @@ class TrackManager:
 
         return frame
 
-    def draw_traingle(
+    def _draw_traingle(
         self, frame: np.ndarray, bbox: List[float], color: Tuple[int, int, int]
     ) -> np.ndarray:
         """
@@ -308,7 +439,56 @@ class TrackManager:
 
         return frame
 
-    def draw_team_ball_control(
+    def _draw_camera_movement(
+        self, frames: List[np.ndarray], camera_movement_per_frame: List[List[float]]
+    ) -> List[np.ndarray]:
+        """
+        Draw camera movement information on frames.
+
+        Args:
+            frames: List of video frames as numpy arrays
+            camera_movement_per_frame: List of [x, y] camera movements per frame
+
+        Returns:
+            List of frames with camera movement information overlaid
+        """
+        output_frames: List[np.ndarray] = []
+
+        for frame_num, frame in enumerate(frames):
+            frame = frame.copy()
+
+            # Create semi-transparent overlay for text background
+            overlay: np.ndarray = frame.copy()
+            cv2.rectangle(overlay, (0, 0), (500, 100), (255, 255, 255), -1)
+            alpha: float = 0.6
+            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+
+            # Add camera movement text
+            x_movement, y_movement = camera_movement_per_frame[frame_num]
+            frame = cv2.putText(
+                frame,
+                f"Camera Movement X: {x_movement:.2f}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 0),
+                3,
+            )
+            frame = cv2.putText(
+                frame,
+                f"Camera Movement Y: {y_movement:.2f}",
+                (10, 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 0),
+                3,
+            )
+
+            output_frames.append(frame)
+
+        return output_frames
+
+    def _draw_team_ball_control(
         self, frame: np.ndarray, frame_num: int, team_ball_control: np.ndarray
     ) -> np.ndarray:
         """

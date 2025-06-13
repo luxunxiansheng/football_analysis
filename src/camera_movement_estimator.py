@@ -1,0 +1,112 @@
+import os
+import pickle
+import sys
+from typing import Any, Dict, List, Optional, Tuple
+
+import cv2
+import numpy as np
+
+sys.path.append("../")
+from utils.bbox_utils import measure_distance, measure_xy_distance
+
+
+class CameraMovementEstimator:
+    """
+    Estimates camera movement between frames using optical flow tracking.
+
+    This class uses Lucas-Kanade optical flow to track feature points and
+    determine camera movement between consecutive frames. It can adjust
+    object positions based on camera movement and visualize the movement.
+    """
+
+    def __init__(self, stub_path=None) -> None:
+        """
+        Initialize the camera movement estimator with the first frame.
+
+        Args:
+            frame: First frame of the video sequence as numpy array
+        """
+        self.minimum_distance: int = 5
+
+        # Lucas-Kanade optical flow parameters
+        self.lk_params: Dict[str, Any] = dict(
+            winSize=(15, 15),
+            maxLevel=2,
+            criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03),
+        )
+
+        self.stub_path = stub_path
+
+ 
+    def get_camera_movement(
+        self,
+        frames: List[np.ndarray],
+        read_from_stub: bool = False,
+        
+    ) -> List[List[float]]:
+        # Create mask for feature detection (focus on edges of frame)
+        first_frame_grayscale: np.ndarray = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
+        mask_features: np.ndarray = np.zeros_like(first_frame_grayscale)
+        mask_features[:, 0:20] = 1  # Left edge
+        mask_features[:, 900:1050] = 1  # Right edge
+
+        # Good features to track parameters
+        self.features: Dict[str, Any] = dict(
+            maxCorners=100,
+            qualityLevel=0.3,
+            minDistance=3,
+            blockSize=7,
+            mask=mask_features,
+        )
+
+        # Read from cache if available
+        if read_from_stub and self.stub_path is not None and os.path.exists(self.stub_path):
+            with open(self.stub_path, "rb") as f:
+                return pickle.load(f)
+
+        # Initialize camera movement array
+        camera_movement: List[List[float]] = [[0, 0]] * len(frames)
+
+        # Convert first frame to grayscale and detect features
+        old_gray: np.ndarray = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
+        old_features: np.ndarray = cv2.goodFeaturesToTrack(old_gray, **self.features)
+
+        # Process each subsequent frame
+        for frame_num in range(1, len(frames)):
+            frame_gray: np.ndarray = cv2.cvtColor(frames[frame_num], cv2.COLOR_BGR2GRAY)
+            new_features, _, _ = cv2.calcOpticalFlowPyrLK(
+                old_gray, frame_gray, old_features, None, **self.lk_params
+            )
+
+            max_distance: float = 0
+            camera_movement_x: float = 0
+            camera_movement_y: float = 0
+
+            # Find the feature point with maximum movement
+            for i, (new, old) in enumerate(zip(new_features, old_features)):
+                new_features_point: np.ndarray = new.ravel()
+                old_features_point: np.ndarray = old.ravel()
+
+                distance: float = measure_distance(
+                    new_features_point, old_features_point
+                )
+                if distance > max_distance:
+                    max_distance = distance
+                    camera_movement_x, camera_movement_y = measure_xy_distance(
+                        old_features_point, new_features_point
+                    )
+
+            # Update camera movement if significant movement detected
+            if max_distance > self.minimum_distance:
+                camera_movement[frame_num] = [camera_movement_x, camera_movement_y]
+                old_features = cv2.goodFeaturesToTrack(frame_gray, **self.features)
+
+            old_gray = frame_gray.copy()
+
+        # Cache results if path provided
+        if self.stub_path is not None:
+            with open(self.stub_path, "wb") as f:
+                pickle.dump(camera_movement, f)
+
+        return camera_movement
+
