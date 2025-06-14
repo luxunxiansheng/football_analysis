@@ -134,7 +134,7 @@ class TrackManager:
         else:
             print("Warning: No frames available for team color assignment")
 
-    def add_positions_to_tracks(self) -> None:
+    def add_positions(self) -> None:
         for object, object_tracks in self.tracks.items():
             for frame_num, track in enumerate(object_tracks):
                 for track_id, track_info in track.items():
@@ -145,7 +145,7 @@ class TrackManager:
                         position = get_foot_position(bbox)
                     self.tracks[object][frame_num][track_id]["position"] = position
 
-    def add_adjust_positions_to_tracks(self) -> None:
+    def add_adjust_positions(self) -> None:
         if self.frames is None:
             raise ValueError("Frames must be initialized before adjusting positions")
 
@@ -187,7 +187,7 @@ class TrackManager:
                 team_ball_control.append(team_ball_control[-1])
         self.team_ball_control = np.array(team_ball_control)
 
-    def add_transformed_position_to_tracks(self) -> None:
+    def add_transformed_position(self) -> None:
 
         for object, object_tracks in self.tracks.items():
             for frame_num, track in enumerate(object_tracks):
@@ -220,7 +220,7 @@ class TrackManager:
 
         self.tracks["ball"] = ball_positions
 
-    def add_speed_and_distance_to_tracks(self) -> None:
+    def add_speed_and_distance(self) -> None:
 
         total_distance: Dict[str, Dict[str, float]] = {}
 
@@ -269,8 +269,8 @@ class TrackManager:
                             "distance"
                         ] = total_distance[object_type][track_id]
 
-    def draw_annotations(self) -> List[np.ndarray]:
-        output_video_frames = []
+    def draw_annotations(self) -> None:
+        output_frames = []
         for frame_num, frame in enumerate(self.frames):
             frame = frame.copy()
 
@@ -294,13 +294,9 @@ class TrackManager:
             for track_id, ball in ball_dict.items():
                 frame = self._draw_traingle(frame, ball["bbox"], (0, 255, 0))
 
-            # Draw Team Ball Control
-            frame = self._draw_team_ball_control(
-                frame, frame_num, self.team_ball_control
-            )
-            output_video_frames.append(frame)
+            output_frames.append(frame)
 
-        return output_video_frames
+        self.frames = output_frames
 
     def _detect_frames(
         self, frames: List[np.ndarray], batch_size: int = 20, conf: float = 0.1
@@ -421,7 +417,7 @@ class TrackManager:
 
         return frame
 
-    def draw_camera_movement(self, frames: List[np.ndarray]) -> List[np.ndarray]:
+    def draw_camera_movement(self) -> None:
         """
         Draw camera movement information on frames.
 
@@ -434,7 +430,7 @@ class TrackManager:
         """
         output_frames: List[np.ndarray] = []
 
-        for frame_num, frame in enumerate(frames):
+        for frame_num, frame in enumerate(self.frames):
             frame = frame.copy()
 
             # Create semi-transparent overlay for text background
@@ -466,11 +462,9 @@ class TrackManager:
 
             output_frames.append(frame)
 
-        return output_frames
+        self.frames = output_frames
 
-    def _draw_team_ball_control(
-        self, frame: np.ndarray, frame_num: int, team_ball_control: np.ndarray
-    ) -> np.ndarray:
+    def draw_team_ball_control(self) -> None:
         """
         Draw team ball control statistics overlay on the video frame.
 
@@ -491,45 +485,49 @@ class TrackManager:
             - Shows cumulative percentages from start to current frame
             - Uses white semi-transparent background
         """
-        # Draw a semi-transparent rectaggle
-        overlay = frame.copy()
-        cv2.rectangle(overlay, (1350, 850), (1900, 970), (255, 255, 255), -1)
-        alpha = 0.4
-        cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+        output_frames: List[np.ndarray] = []
+        for frame_num, frame in enumerate(self.frames):
+            frame = frame.copy()
+            # Draw a semi-transparent rectaggle
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (1350, 850), (1900, 970), (255, 255, 255), -1)
+            alpha = 0.4
+            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
-        team_ball_control_till_frame = team_ball_control[: frame_num + 1]
-        # Get the number of time each team had ball control
-        team_1_num_frames = team_ball_control_till_frame[
-            team_ball_control_till_frame == 1
-        ].shape[0]
-        team_2_num_frames = team_ball_control_till_frame[
-            team_ball_control_till_frame == 2
-        ].shape[0]
-        team_1 = team_1_num_frames / (team_1_num_frames + team_2_num_frames)
-        team_2 = team_2_num_frames / (team_1_num_frames + team_2_num_frames)
+            team_ball_control_till_frame = self.team_ball_control[: frame_num + 1]
+            # Get the number of time each team had ball control
+            team_1_num_frames = team_ball_control_till_frame[
+                team_ball_control_till_frame == 1
+            ].shape[0]
+            team_2_num_frames = team_ball_control_till_frame[
+                team_ball_control_till_frame == 2
+            ].shape[0]
+            team_1 = team_1_num_frames / (team_1_num_frames + team_2_num_frames)
+            team_2 = team_2_num_frames / (team_1_num_frames + team_2_num_frames)
 
-        cv2.putText(
-            frame,
-            f"Team 1 Ball Control: {team_1*100:.2f}%",
-            (1400, 900),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 0, 0),
-            3,
-        )
-        cv2.putText(
-            frame,
-            f"Team 2 Ball Control: {team_2*100:.2f}%",
-            (1400, 950),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 0, 0),
-            3,
-        )
+            cv2.putText(
+                frame,
+                f"Team 1 Ball Control: {team_1*100:.2f}%",
+                (1400, 900),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 0),
+                3,
+            )
+            cv2.putText(
+                frame,
+                f"Team 2 Ball Control: {team_2*100:.2f}%",
+                (1400, 950),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 0),
+                3,
+            )
+            output_frames.append(frame)
 
-        return frame
+        self.frames = output_frames
 
-    def draw_speed_and_distance(self, frames: List[np.ndarray]) -> List[np.ndarray]:
+    def draw_speed_and_distance(self) -> None:
         """
         Draw speed and distance information on video frames.
 
@@ -544,7 +542,7 @@ class TrackManager:
             List[np.ndarray]: List of frames with speed and distance annotations drawn
         """
         output_frames = []
-        for frame_num, frame in enumerate(frames):
+        for frame_num, frame in enumerate(self.frames):
             for object_type, object_tracks in self.tracks.items():
                 if object_type == "ball" or object_type == "referees":
                     continue
@@ -581,4 +579,4 @@ class TrackManager:
                         )
             output_frames.append(frame)
 
-        return output_frames
+        self.frames = output_frames
