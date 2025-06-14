@@ -103,8 +103,6 @@ class TrackManager:
                 if cls_id == cls_names_inv["ball"]:
                     self.tracks["ball"][frame_num][1] = {"bbox": bbox}
 
-            print(detection_with_tracks)
-
         if stub_path is not None:
             with open(stub_path, "wb") as f:
                 pickle.dump(self.tracks, f)
