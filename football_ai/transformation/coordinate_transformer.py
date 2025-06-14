@@ -3,30 +3,39 @@ Coordinate Transformation Module
 
 This module provides functionality to transform pixel coordinates to real-world
 field coordinates using perspective transformation and homography.
+Includes field corner detection and management.
 """
 
 import cv2
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 
-from ..domain.interfaces import CoordinateTransformer
+from ..domain.interfaces import CoordinateTransformer, FieldKeypointDetector
 
 
 class PerspectiveCoordinateTransformer(CoordinateTransformer):
     """
     Implementation of coordinate transformation using perspective
     transformation to map pixel coordinates to real football field coordinates.
+
+    Includes encapsulated field corner management and auto-detection capability.
     """
 
     def __init__(
-        self, field_width: float = 68.0, field_height: float = 105.0  # meters
-    ):  # meters
+        self,
+        field_width: float = 68.0,
+        field_height: float = 105.0,
+        field_corners: Optional[List[List[float]]] = None,
+        auto_detector: Optional[FieldKeypointDetector] = None,
+    ):
         """
         Initialize the coordinate transformer.
 
         Args:
             field_width: Width of football field in meters
             field_height: Height of football field in meters
+            field_corners: Optional 4 field corner coordinates in pixels
+            auto_detector: Optional detector for automatic field corner detection
         """
         self.field_width = field_width
         self.field_height = field_height
@@ -35,8 +44,11 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
         self.perspective_matrix: Optional[np.ndarray] = None
         self.inverse_perspective_matrix: Optional[np.ndarray] = None
 
-        # Field corners in pixel coordinates (will be set during calibration)
-        self.pixel_vertices: Optional[List[List[float]]] = None
+        # Field corners in pixel coordinates
+        self._field_corners: Optional[List[List[float]]] = field_corners
+
+        # Auto detection capability
+        self._auto_detector: Optional[FieldKeypointDetector] = auto_detector
 
         # Default field vertices in real-world coordinates (meters)
         self.field_vertices = [
@@ -46,26 +58,85 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
             [0, self.field_height],  # Bottom-left corner
         ]
 
-    def calibrate(self, pixel_vertices: List[List[float]]) -> bool:
+        # Auto-calibrate if field corners are provided
+        if self._field_corners:
+            self.calibrate_from_corners(self._field_corners)
+
+    def set_field_corners(self, corners: List[List[float]]) -> bool:
+        """
+        Set field corners and automatically calibrate.
+
+        Args:
+            corners: List of [x, y] pixel coordinates for field corners
+                    in order: [top-left, top-right, bottom-right, bottom-left]
+
+        Returns:
+            True if calibration successful, False otherwise
+        """
+        self._field_corners = corners
+        return self.calibrate_from_corners(corners)
+
+    def get_field_corners(self) -> Optional[List[List[float]]]:
+        """Get current field corners."""
+        return self._field_corners
+
+    def set_auto_detector(self, detector: FieldKeypointDetector) -> None:
+        """Set automatic field corner detector for future use."""
+        self._auto_detector = detector
+
+    def auto_calibrate_from_frame(self, frame: np.ndarray) -> bool:
+        """
+        Automatically detect field corners from video frame and calibrate.
+
+        Args:
+            frame: Video frame for field corner detection
+
+        Returns:
+            True if detection and calibration successful, False otherwise
+        """
+        if not self._auto_detector:
+            print("No auto detector available for field corner detection")
+            return False
+
+        if not self._auto_detector.is_ready():
+            print("Auto detector not ready")
+            return False
+
+        detected_corners = self._auto_detector.detect_keypoints(frame)
+
+        if detected_corners is None:
+            print("Failed to detect field corners from frame")
+            return False
+
+        print(
+            f"Detected field corners with confidence: {self._auto_detector.get_confidence()}"
+        )
+        return self.set_field_corners(detected_corners)
+
+    def is_calibrated(self) -> bool:
+        """Check if transformer is calibrated and ready to use."""
+        return self.perspective_matrix is not None
+
+    def calibrate_from_corners(self, pixel_corners: List[List[float]]) -> bool:
         """
         Calibrate the transformer using field corner coordinates in pixels.
 
         Args:
-            pixel_vertices: List of [x, y] pixel coordinates for field corners
-                           in order: [top-left, top-right, bottom-right, bottom-left]
+            pixel_corners: List of [x, y] pixel coordinates for field corners
+                          in order: [top-left, top-right, bottom-right, bottom-left]
 
         Returns:
             True if calibration successful, False otherwise
         """
         try:
-            if len(pixel_vertices) != 4:
+            if len(pixel_corners) != 4:
                 print("Error: Need exactly 4 corner points for calibration")
                 return False
 
-            self.pixel_vertices = pixel_vertices
+            self._field_corners = pixel_corners
 
             # Convert to numpy arrays
-            src_points = np.array(pixel_vertices, dtype=np.float32)
+            src_points = np.array(pixel_corners, dtype=np.float32)
             dst_points = np.array(self.field_vertices, dtype=np.float32)
 
             # Calculate perspective transformation matrix
@@ -82,6 +153,18 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
         except Exception as e:
             print(f"Error calibrating coordinate transformer: {e}")
             return False
+
+    def calibrate(self, pixel_vertices: List[List[float]]) -> bool:
+        """
+        Legacy method for backward compatibility.
+
+        Args:
+            pixel_vertices: List of [x, y] pixel coordinates for field corners
+
+        Returns:
+            True if calibration successful, False otherwise
+        """
+        return self.calibrate_from_corners(pixel_vertices)
 
     def transform_point(self, pixel_point: Tuple[float, float]) -> Tuple[float, float]:
         """

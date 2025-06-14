@@ -29,6 +29,7 @@ class TeamAssignment(Enum):
 
 
 @dataclass
+@dataclass
 class TeamColor:
     """Represents team color information."""
 

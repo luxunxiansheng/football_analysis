@@ -115,12 +115,22 @@ class TransformationConfig:
     field_width: float = 68.0
     field_height: float = 105.0
 
+    # Keypoint Strategy Configuration
+    keypoint_strategy: str = "manual"  # "manual", "auto", "hybrid"
+    auto_detection_algorithm: str = (
+        "line_detection"  # "line_detection", "deep_learning", "template_matching", "composite"
+    )
+
     # Transformation Parameters
     auto_calibrate: bool = True
     calibration_confidence_threshold: float = 0.8
 
-    # Default field keypoints (if manual calibration)
+    # Default field keypoints (for manual strategy)
     default_keypoints: Optional[List[List[float]]] = None
+
+    # Auto-detection Parameters
+    detection_retry_frames: int = 10  # Retry detection every N frames if failed
+    detection_cache_duration: int = 100  # Cache successful detection for N frames
 
     # Coordinate System
     origin_position: str = "top_left"  # "top_left", "bottom_left", "center"
@@ -189,8 +199,8 @@ class ProcessingConfig:
     # Caching
     enable_caching: bool = True
     cache_directory: str = "outputs/cache"
-    load_from_cache: bool = True
-    save_to_cache: bool = True
+    load_from_cache: bool = False
+    save_to_cache: bool = False
 
     # Processing Options
     process_every_nth_frame: int = 1

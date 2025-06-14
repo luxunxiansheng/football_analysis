@@ -146,9 +146,17 @@ class VideoRenderer:
             color = self.colors["unknown"]
 
         # Use team color if available and enabled
-        if self.show_team_colors and player.team_color is not None:
-            # Convert BGR to RGB for display
-            color = (player.team_color[2], player.team_color[1], player.team_color[0])
+        if (
+            self.show_team_colors
+            and player.team_color is not None
+            and len(player.team_color) >= 3
+        ):
+            # Convert BGR to RGB for display and ensure integers
+            color = (
+                int(player.team_color[2]),
+                int(player.team_color[1]),
+                int(player.team_color[0]),
+            )
 
         # Draw bounding box
         thickness = 3 if player.has_ball else 2
@@ -349,15 +357,35 @@ class VideoRenderer:
             y_pos += 20
 
             for team_id, team_color in team_colors.items():
-                color = (
-                    team_color.primary_color[2],
-                    team_color.primary_color[1],
-                    team_color.primary_color[0],
-                )
+                # Safely extract color with validation
+                if (
+                    hasattr(team_color, "primary_color")
+                    and team_color.primary_color is not None
+                    and len(team_color.primary_color) >= 3
+                ):
+                    # Convert BGR to RGB and ensure values are integers
+                    color = (
+                        int(team_color.primary_color[2]),
+                        int(team_color.primary_color[1]),
+                        int(team_color.primary_color[0]),
+                    )
+                else:
+                    # Fallback colors for teams
+                    fallback_colors = [
+                        (255, 0, 0),
+                        (0, 0, 255),
+                        (0, 255, 0),
+                        (255, 255, 0),
+                    ]
+                    color = fallback_colors[team_id % len(fallback_colors)]
+
                 cv2.rectangle(frame, (20, y_pos - 10), (35, y_pos + 5), color, -1)
+
+                # Safely get team name
+                team_name = getattr(team_color, "name", f"Team_{team_id}")
                 cv2.putText(
                     frame,
-                    team_color.name,
+                    team_name,
                     (45, y_pos),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.4,

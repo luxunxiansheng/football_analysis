@@ -85,3 +85,59 @@ class VideoRenderer(ABC):
     ) -> List[np.ndarray]:
         """Render all annotations on video frames."""
         pass
+
+
+class FieldKeypointDetector(ABC):
+    """
+    Abstract interface for field keypoint detection algorithms.
+
+    This allows the system to be open for extension (new detection algorithms)
+    but closed for modification (existing code doesn't change).
+    """
+
+    @abstractmethod
+    def detect_keypoints(
+        self, frame: np.ndarray, **kwargs
+    ) -> Optional[List[List[float]]]:
+        """
+        Detect field keypoints from a video frame.
+
+        Args:
+            frame: Video frame as numpy array
+            **kwargs: Algorithm-specific parameters
+
+        Returns:
+            List of [x, y] coordinates for field corners if detection successful,
+            None if detection failed
+        """
+        pass
+
+    @abstractmethod
+    def get_confidence(self) -> float:
+        """
+        Get confidence score of the last detection.
+
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        pass
+
+    @abstractmethod
+    def get_algorithm_name(self) -> str:
+        """
+        Get the name of the detection algorithm.
+
+        Returns:
+            Algorithm name string
+        """
+        pass
+
+    @abstractmethod
+    def is_ready(self) -> bool:
+        """
+        Check if the detector is ready to perform detection.
+
+        Returns:
+            True if ready, False otherwise
+        """
+        pass
