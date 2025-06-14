@@ -53,7 +53,7 @@ class TeamAssigner:
 
         return kmeans
 
-    def get_player_color(self, frame: np.ndarray, bbox: List[float]) -> np.ndarray:
+    def _get_player_color(self, frame: np.ndarray, bbox: List[float]) -> np.ndarray:
         """
         Extract the dominant jersey color of a player from their bounding box.
 
@@ -135,7 +135,7 @@ class TeamAssigner:
         # Extract colors from all detected players
         for _, player_detection in player_detections.items():
             bbox: List[float] = player_detection["bbox"]
-            player_color: np.ndarray = self.get_player_color(frame, bbox)
+            player_color: np.ndarray = self._get_player_color(frame, bbox)
             player_colors.append(player_color)
 
         # Cluster player colors into two teams
@@ -180,7 +180,7 @@ class TeamAssigner:
             return self.player_team_dict[player_id]
 
         # Extract player's current jersey color
-        player_color: np.ndarray = self.get_player_color(frame, player_bbox)
+        player_color: np.ndarray = self._get_player_color(frame, player_bbox)
 
         # Predict team based on color similarity to team clusters
         team_id: int = self.kmeans.predict(player_color.reshape(1, -1))[0]

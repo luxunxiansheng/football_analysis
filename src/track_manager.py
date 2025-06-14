@@ -7,7 +7,6 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from sympy import N
 from ultralytics import YOLO
 import supervision as sv
 
@@ -104,6 +103,8 @@ class TrackManager:
                 if cls_id == cls_names_inv["ball"]:
                     self.tracks["ball"][frame_num][1] = {"bbox": bbox}
 
+            print(detection_with_tracks)
+
         if stub_path is not None:
             with open(stub_path, "wb") as f:
                 pickle.dump(self.tracks, f)
@@ -119,13 +120,19 @@ class TrackManager:
             player_detections (List[dict]): List of player detection dictionaries
         """
         if self.frames is not None and len(self.frames) > 0:
-            self.team_assigner.assign_team_color(self.frames[0], self.tracks["players"][0])
+            self.team_assigner.assign_team_color(
+                self.frames[0], self.tracks["players"][0]
+            )
             for frame_num, player_track in enumerate(self.tracks["players"]):
                 for player_id, track in player_track.items():
-                    team = self.team_assigner.get_player_team(self.frames[frame_num], track["bbox"], player_id)
+                    team = self.team_assigner.get_player_team(
+                        self.frames[frame_num], track["bbox"], player_id
+                    )
                     self.tracks["players"][frame_num][player_id]["team"] = team
-                    self.tracks["players"][frame_num][player_id]["team_color"] = (self.team_assigner.team_colors[team])
-        
+                    self.tracks["players"][frame_num][player_id]["team_color"] = (
+                        self.team_assigner.team_colors[team]
+                    )
+
         else:
             print("Warning: No frames available for team color assignment")
 
@@ -144,8 +151,12 @@ class TrackManager:
         if self.frames is None:
             raise ValueError("Frames must be initialized before adjusting positions")
 
-        self.camera_movement_per_frame = self.camera_movement_estimator.get_camera_movement(self.frames,read_from_stub=True)
-        
+        self.camera_movement_per_frame = (
+            self.camera_movement_estimator.get_camera_movement(
+                self.frames, read_from_stub=True
+            )
+        )
+
         for object_type, object_tracks in self.tracks.items():
             for frame_num, track in enumerate(object_tracks):
                 for track_id, track_info in track.items():
@@ -157,9 +168,11 @@ class TrackManager:
                         position[0] - camera_movement[0],
                         position[1] - camera_movement[1],
                     )
-                    self.tracks[object_type][frame_num][track_id]["position_adjusted"] = position_adjusted
+                    self.tracks[object_type][frame_num][track_id][
+                        "position_adjusted"
+                    ] = position_adjusted
 
-    def assign_ball_to_players(self) -> None:        
+    def assign_ball_to_players(self) -> None:
         team_ball_control = []
         for frame_num, player_track in enumerate(self.tracks["players"]):
             ball_bbox = self.tracks["ball"][frame_num][1]["bbox"]
@@ -177,17 +190,21 @@ class TrackManager:
         self.team_ball_control = np.array(team_ball_control)
 
     def add_transformed_position_to_tracks(self) -> None:
-        
+
         for object, object_tracks in self.tracks.items():
             for frame_num, track in enumerate(object_tracks):
                 for track_id, track_info in track.items():
                     position = track_info["position_adjusted"]
                     position = np.array(position)
-                    position_transformed = self.view_transformer.transform_point(position)
+                    position_transformed = self.view_transformer.transform_point(
+                        position
+                    )
                     if position_transformed is not None:
                         position_transformed = position_transformed.squeeze().tolist()
-                    
-                    self.tracks[object][frame_num][track_id]["position_transformed"] = position_transformed
+
+                    self.tracks[object][frame_num][track_id][
+                        "position_transformed"
+                    ] = position_transformed
 
     def interpolate_ball_positions(self) -> None:
         ball_positions = [x.get(1, {}).get("bbox", []) for x in self.tracks["ball"]]
@@ -254,8 +271,6 @@ class TrackManager:
                             "distance"
                         ] = total_distance[object_type][track_id]
 
- 
-    
     def draw_annotations(self) -> List[np.ndarray]:
         output_video_frames = []
         for frame_num, frame in enumerate(self.frames):
@@ -282,8 +297,9 @@ class TrackManager:
                 frame = self._draw_traingle(frame, ball["bbox"], (0, 255, 0))
 
             # Draw Team Ball Control
-            frame = self._draw_team_ball_control(frame, frame_num, self.team_ball_control)
-
+            frame = self._draw_team_ball_control(
+                frame, frame_num, self.team_ball_control
+            )
             output_video_frames.append(frame)
 
         return output_video_frames
@@ -291,20 +307,6 @@ class TrackManager:
     def _detect_frames(
         self, frames: List[np.ndarray], batch_size: int = 20, conf: float = 0.1
     ) -> List[Any]:
-        """
-        Perform object detection on a list of video frames using batch processing.
-
-        Processes frames in batches to optimize GPU memory usage and inference speed.
-
-        Args:
-            frames (List[np.ndarray]): List of video frames (numpy arrays)
-
-        Returns:
-            List[Any]: List of YOLO detection results, one per frame
-
-        Note:
-            Uses batch_size=20 and confidence threshold=0.1 for detection
-        """
 
         detections = []
         for i in range(0, len(frames), batch_size):
@@ -421,9 +423,7 @@ class TrackManager:
 
         return frame
 
-    def _draw_camera_movement(
-        self, frames: List[np.ndarray], camera_movement_per_frame: List[List[float]]
-    ) -> List[np.ndarray]:
+    def draw_camera_movement(self, frames: List[np.ndarray]) -> List[np.ndarray]:
         """
         Draw camera movement information on frames.
 
@@ -446,7 +446,7 @@ class TrackManager:
             cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
             # Add camera movement text
-            x_movement, y_movement = camera_movement_per_frame[frame_num]
+            x_movement, y_movement = self.camera_movement_per_frame[frame_num]
             frame = cv2.putText(
                 frame,
                 f"Camera Movement X: {x_movement:.2f}",
@@ -531,37 +531,7 @@ class TrackManager:
 
         return frame
 
-    def _draw_team_ball_control(
-        self,
-        frame: np.ndarray,
-        frame_num: int,
-        team_ball_control: List[int],
-    ) -> np.ndarray:
-        """
-        Draw the team ball control information on the frame.
-
-        Args:
-            frame (np.ndarray): The current video frame
-            frame_num (int): The current frame number
-            team_ball_control (List[int]): List indicating which team has ball control
-                                           (1 for Team 1, 2 for Team 2)
-
-        Returns:
-            np.ndarray: The frame with team ball control information drawn
-        """
-        for track_id, player in self.tracks["players"][frame_num].items():
-            if player.get("has_ball", False):
-                team = team_ball_control[frame_num]
-                color = (0, 255, 0) if team == 1 else (255, 0, 0)
-                frame = self._draw_ellipse(frame, player["bbox"], color, track_id)
-
-        return frame
-
-    def _draw_speed_and_distance(
-        self,
-        frames: List[np.ndarray],
-        tracks: Dict[str, List[Dict[str, Dict[str, Any]]]],
-    ) -> List[np.ndarray]:
+    def draw_speed_and_distance(self, frames: List[np.ndarray]) -> List[np.ndarray]:
         """
         Draw speed and distance information on video frames.
 
@@ -577,7 +547,7 @@ class TrackManager:
         """
         output_frames = []
         for frame_num, frame in enumerate(frames):
-            for object_type, object_tracks in tracks.items():
+            for object_type, object_tracks in self.tracks.items():
                 if object_type == "ball" or object_type == "referees":
                     continue
                 for _, track_info in object_tracks[frame_num].items():
