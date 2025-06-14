@@ -71,3 +71,7 @@ class ModernByteTracker(ObjectTracker):
             result_detections.append(detection)
 
         return result_detections
+
+    def update(self, detections: List[Detection]) -> List[Detection]:
+        """Update object tracking with new detections."""
+        return self.track_objects(detections)

@@ -41,6 +41,13 @@ class ModernYOLODetector(ObjectDetector):
 
         return all_detections
 
+    def detect(self, frame: np.ndarray) -> List[Detection]:
+        """Detect objects in a single frame."""
+        result = self.model.predict(
+            frame, conf=self.confidence_threshold, verbose=False
+        )
+        return self._parse_yolo_result(result[0])
+
     def _parse_yolo_result(self, yolo_result) -> List[Detection]:
         """Parse YOLO result into Detection objects."""
         detections = []

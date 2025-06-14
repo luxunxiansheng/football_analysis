@@ -17,6 +17,7 @@ The system has been completely rewritten with a clean, modular architecture that
 - **Coordinate Transformation**: Perspective transformation for real-world measurements
 - **Speed & Distance Calculation**: Player movement analysis in meters and km/h
 - **Professional Visualization**: High-quality video annotations and overlays
+- **🆕 Configuration System**: Comprehensive dataclass-based configuration with presets
 
 ## Architecture
 
@@ -28,10 +29,35 @@ The modern system follows clean architecture principles with:
 - **Type Safety**: Full type hints throughout the codebase
 - **Error Handling**: Robust error recovery and logging
 - **Performance Optimization**: Efficient processing pipeline with caching
+- **🆕 Flexible Configuration**: Type-safe, hierarchical configuration system
 
 ## Quick Start
 
-### Basic Usage
+### Configuration-Based Usage (Recommended)
+
+```python
+from football_ai import FootballAnalysisPipeline
+from football_ai.config import get_broadcast_config
+
+# Use a predefined configuration
+config = get_broadcast_config()
+config.update_paths(
+    model_path="models/best.pt",
+    input_video_path="input_videos/match.mp4",
+    output_video_path="output_videos/annotated.mp4"
+)
+
+# Initialize with configuration
+pipeline = FootballAnalysisPipeline(config=config)
+
+# Process the video
+results = pipeline.process_video(
+    video_path=config.processing.input_video_path,
+    output_video_path=config.processing.output_video_path
+)
+```
+
+### Basic Usage (Legacy Support)
 
 ```python
 from football_ai import FootballAnalysisPipeline
@@ -57,6 +83,80 @@ print(f"Team possession: {results.team_ball_control}")
 1. Open `football_ai_demo.ipynb`
 2. Update the configuration paths
 3. Run all cells to see the complete analysis
+
+## Configuration System
+
+The Football AI system includes a comprehensive configuration system that makes it easy to customize behavior for different scenarios.
+
+### Predefined Configurations
+
+```python
+from football_ai.config import (
+    get_default_config,      # Balanced performance and accuracy
+    get_high_accuracy_config,    # Maximum analysis quality  
+    get_fast_processing_config,  # Optimized for speed
+    get_broadcast_config        # Professional broadcast quality
+)
+
+# Use a predefined configuration
+config = get_broadcast_config()
+```
+
+### Custom Configuration
+
+```python
+from football_ai.config import FootballAIConfig
+
+# Create custom configuration
+config = FootballAIConfig()
+
+# Customize detection settings
+config.model.confidence_threshold = 0.7
+config.model.model_path = "models/custom_model.pt"
+
+# Customize rendering
+config.rendering.show_tracks = True
+config.rendering.show_team_colors = True
+config.rendering.bbox_thickness = 3
+
+# Customize processing
+config.processing.process_every_nth_frame = 2  # Process every 2nd frame
+config.processing.enable_caching = True
+
+# Save configuration for later use
+config.save_to_file("my_config.json")
+
+# Load configuration from file
+config = FootballAIConfig.load_from_file("my_config.json")
+```
+
+### Configuration Validation
+
+```python
+# Validate configuration
+issues = config.validate()
+if issues:
+    for issue in issues:
+        print(f"Warning: {issue}")
+
+# Get configuration summary
+print(config.get_summary())
+```
+
+### Configuration Structure
+
+The configuration is organized hierarchically:
+
+- **`model`**: YOLO detection settings (confidence, model path, device)
+- **`tracking`**: ByteTrack settings (thresholds, buffers, smoothing)
+- **`team_analysis`**: Team color analysis (clustering, samples, confidence)
+- **`possession`**: Ball possession analysis (distance thresholds, smoothing)
+- **`camera`**: Camera motion tracking (features, quality levels)
+- **`transformation`**: Coordinate transformation (field dimensions, calibration)
+- **`rendering`**: Visualization settings (colors, overlays, annotations)
+- **`processing`**: Performance and I/O settings (paths, caching, batching)
+
+This makes the system highly configurable while maintaining type safety and validation.
 
 ## Requirements
 

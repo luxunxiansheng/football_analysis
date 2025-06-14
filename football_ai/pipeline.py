@@ -10,8 +10,10 @@ import numpy as np
 from typing import List, Dict, Optional, Tuple, Any
 import pickle
 import os
+import contextlib
 from tqdm import tqdm
 
+from .config import FootballAIConfig, get_default_config
 from .domain.models import (
     Detection,
     PlayerState,
@@ -38,35 +40,61 @@ class FootballAnalysisPipeline:
 
     def __init__(
         self,
-        model_path: str,
-        output_dir: str = "output",
-        save_cache: bool = True,
-        load_cache: bool = True,
+        config: Optional[FootballAIConfig] = None,
+        model_path: Optional[str] = None,
+        output_dir: Optional[str] = None,
+        save_cache: Optional[bool] = None,
+        load_cache: Optional[bool] = None,
     ):
         """
         Initialize the football analysis pipeline.
 
         Args:
-            model_path: Path to YOLO model file
-            output_dir: Directory for output files
-            save_cache: Whether to save processing cache
-            load_cache: Whether to load from cache if available
+            config: Football AI configuration object. If None, uses default config.
+            model_path: Path to YOLO model file (overrides config if provided)
+            output_dir: Directory for output files (overrides config if provided)
+            save_cache: Whether to save processing cache (overrides config if provided)
+            load_cache: Whether to load from cache if available (overrides config if provided)
         """
-        self.model_path = model_path
-        self.output_dir = output_dir
-        self.save_cache = save_cache
-        self.load_cache = load_cache
+        # Initialize configuration
+        self.config = config if config is not None else get_default_config()
+
+        # Override config with any explicitly provided parameters
+        if model_path is not None:
+            self.config.model.model_path = model_path
+        if output_dir is not None:
+            self.config.processing.output_directory = output_dir
+        if save_cache is not None:
+            self.config.processing.save_to_cache = save_cache
+        if load_cache is not None:
+            self.config.processing.load_from_cache = load_cache
+
+        # Validate configuration
+        validation_issues = self.config.validate()
+        if validation_issues:
+            print("Configuration validation warnings:")
+            for issue in validation_issues:
+                print(f"  - {issue}")
 
         # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(self.config.processing.output_directory, exist_ok=True)
 
-        # Initialize components
-        self.detector = ModernYOLODetector(model_path)
+        # Initialize components with configuration
+        self.detector = ModernYOLODetector(
+            model_path=self.config.model.model_path,
+            confidence_threshold=self.config.model.confidence_threshold,
+        )
+
         self.tracker = ModernByteTracker()
+
         self.team_analyzer = ModernTeamColorAnalyzer()
+
         self.possession_analyzer = ModernBallPossessionAnalyzer()
+
         self.camera_tracker = ModernCameraMotionTracker()
+
         self.coordinate_transformer = ModernCoordinateTransformer()
+
         self.renderer = ModernVideoRenderer()
 
         # Analysis results
@@ -74,6 +102,11 @@ class FootballAnalysisPipeline:
 
         # Processing state
         self.is_initialized = False
+
+        if self.config.verbose_logging:
+            print("Football AI analysis pipeline initialized successfully!")
+            if self.config.debug_mode:
+                print(self.config.get_summary())
 
     def process_video(
         self,
@@ -95,14 +128,17 @@ class FootballAnalysisPipeline:
         print(f"Starting analysis of video: {video_path}")
 
         # Check for cached results
-        cache_path = os.path.join(self.output_dir, "analysis_cache.pkl")
-        if self.load_cache and os.path.exists(cache_path):
+        cache_path = os.path.join(
+            self.config.processing.output_directory, "analysis_cache.pkl"
+        )
+        if self.config.processing.load_from_cache and os.path.exists(cache_path):
             print("Loading cached analysis results...")
             try:
                 with open(cache_path, "rb") as f:
-                    self.analysis_results = pickle.load(f)
+                    cached_results = pickle.load(f)
+                self.analysis_results = cached_results
                 print("Cached results loaded successfully")
-                return self.analysis_results
+                return cached_results
             except Exception as e:
                 print(f"Failed to load cache: {e}")
 
@@ -182,8 +218,11 @@ class FootballAnalysisPipeline:
         )
 
         # Save cache
-        if self.save_cache:
+        if self.config.processing.save_to_cache:
             try:
+                cache_path = os.path.join(
+                    self.config.processing.output_directory, "analysis_cache.pkl"
+                )
                 with open(cache_path, "wb") as f:
                     pickle.dump(self.analysis_results, f)
                 print("Analysis results cached successfully")
@@ -427,13 +466,14 @@ class FootballAnalysisPipeline:
         """Get the current analysis results."""
         return self.analysis_results
 
-    def save_results(self, filepath: str):
+    def save_results(self, filepath: str) -> None:
         """Save analysis results to file."""
         if self.analysis_results is None:
-            raise ValueError("No analysis results to save")
+            raise ValueError("No analysis results to save. Run process_video first.")
 
         with open(filepath, "wb") as f:
             pickle.dump(self.analysis_results, f)
+        print(f"Analysis results saved to: {filepath}")
 
     def load_results(self, filepath: str):
         """Load analysis results from file."""
