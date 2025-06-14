@@ -80,9 +80,17 @@ print(f"Team possession: {results.team_ball_control}")
 
 ### Using the Demo Notebook
 
-1. Open `football_ai_demo.ipynb`
-2. Update the configuration paths
-3. Run all cells to see the complete analysis
+The `football_ai_demo.ipynb` provides a clean, simplified workflow:
+
+1. **Import and Setup** - Load the Football AI system
+2. **Configuration** - Choose from predefined configs or customize
+3. **Initialize Pipeline** - Create the analysis pipeline
+4. **Process Video** - Run complete football analysis
+5. **View Results** - See analysis summary and outputs
+
+The notebook demonstrates all key features in under 10 cells with clear explanations.
+
+For advanced configuration examples, see `football_ai_demo_complete.ipynb`.
 
 ## Configuration System
 
@@ -184,13 +192,17 @@ football_ai/                      # Football AI system
 ├── transformation/                # Coordinate transformation
 ├── rendering/                     # Video visualization
 ├── utils/                         # Utility functions
+├── config.py                      # Configuration system
 └── pipeline.py                    # Main orchestrator
 
-notebook/                          # Original reference notebook
-training/                          # Model training resources
+input_videos/                      # Input video files
+outputs/                           # All output files
+├── videos/                        # Annotated video outputs
+├── data/                          # Analysis data and cache
+└── configs/                       # Saved configurations
+
 models/                           # Trained YOLO models
-input_videos/                     # Input video files
-output_videos/                    # Generated output videos
+training/                         # Model training resources
 ```
 
 ## Models

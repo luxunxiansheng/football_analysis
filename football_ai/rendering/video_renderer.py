@@ -228,7 +228,7 @@ class ModernVideoRenderer:
             (x1, y1 - 5),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.4,
-            self.colors["white"],
+            self.colors["text"],
             1,
         )
 

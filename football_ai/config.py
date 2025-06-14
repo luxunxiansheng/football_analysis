@@ -179,7 +179,7 @@ class ProcessingConfig:
     # Video Processing
     input_video_path: str = ""
     output_video_path: str = ""
-    output_directory: str = "output"
+    output_directory: str = "outputs/data"
 
     # Performance Settings
     batch_size: int = 1
@@ -188,7 +188,7 @@ class ProcessingConfig:
 
     # Caching
     enable_caching: bool = True
-    cache_directory: str = "cache"
+    cache_directory: str = "outputs/cache"
     load_from_cache: bool = True
     save_to_cache: bool = True
 
@@ -376,7 +376,12 @@ class FootballAIConfig:
 # Predefined configuration presets
 def get_default_config() -> FootballAIConfig:
     """Get default configuration for general use."""
-    return FootballAIConfig()
+    config = FootballAIConfig()
+    # Set default model path to absolute path if it exists
+    default_model_path = "/workspaces/football_analysis/models/best.pt"
+    if Path(default_model_path).exists():
+        config.model.model_path = default_model_path
+    return config
 
 
 def get_high_accuracy_config() -> FootballAIConfig:

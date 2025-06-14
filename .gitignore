@@ -1,9 +1,21 @@
 *__pycahce__*
 *.pyc
+
+# Input and output directories
 /input_videos
+/outputs
+/output_videos
+
+# Model files
 /models
+
+# Training data and runs
 /training/football-players-detection-12
 /training/runs
 /runs
-/training 
-/output_videos
+/training
+
+# Temporary configuration files
+*_config.json
+demo_config.json
+test_config.py
