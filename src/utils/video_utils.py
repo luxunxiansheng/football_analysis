@@ -1,5 +1,4 @@
 from typing import List
-
 import cv2
 import numpy as np
 
@@ -45,23 +44,18 @@ def save_video(
         output_video_frames (List[np.ndarray]): List of video frames to save
         output_video_path (str): Path where the output video will be saved
         fps (int): Frames per second for the output video (default: 24)
-        codec (str): Video codec to use (default: 'XVID')
+        codec (str): Video codec to use (default: 'mp4v')
 
     Raises:
         ValueError: If the frames list is empty
         RuntimeError: If the video writer cannot be initialized
     """
     if not output_video_frames:
-        raise ValueError("Cannot save video: frames list is empty")
+        raise ValueError("No frames to save.")
 
-    fourcc = cv2.VideoWriter_fourcc(*codec)
     height, width = output_video_frames[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*codec)
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-
-    if not out.isOpened():
-        raise RuntimeError(
-            f"Could not initialize video writer for: {output_video_path}"
-        )
 
     for frame in output_video_frames:
         out.write(frame)

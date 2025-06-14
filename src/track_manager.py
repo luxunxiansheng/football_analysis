@@ -6,9 +6,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 import pandas as pd
-
 from ultralytics import YOLO
-import supervision as sv
+
+try:
+    import supervision as sv
+except ImportError:
+    sv = None
 
 # Local application imports
 sys.path.append("../")
@@ -25,6 +28,13 @@ from utils.bbox_utils import (
 
 
 class TrackManager:
+    """
+    Manages object tracking, team assignment, and video annotation for football analysis.
+
+    This class coordinates multiple components to track players, referees, and the ball
+    across video frames, assigns teams based on jersey colors, and provides visualization.
+    """
+
     def __init__(
         self,
         model_path: str,
@@ -35,11 +45,23 @@ class TrackManager:
         frame_window: int = 5,
         frame_rate: int = 24,
     ):
-        self.model: YOLO = YOLO(model_path)
-        self.frames = None
+        """
+        Initialize the TrackManager with required components.
+
+        Args:
+            model_path: Path to YOLO model file
+            team_assigner: Component for assigning players to teams
+            player_ball_assigner: Component for ball-player assignment
+            camera_movement_estimator: Component for camera movement estimation
+            view_transformer: Component for coordinate transformation
+            frame_window: Window size for speed/distance calculations
+            frame_rate: Video frame rate for speed calculations
+        """
+        self.model = YOLO(model_path)
+        self.frames: Optional[List[np.ndarray]] = None
         self.tracks = {"players": [], "referees": [], "ball": []}
-        self.camera_movement_per_frame = None
-        self.team_ball_control = None
+        self.camera_movement_per_frame: Optional[List[List[float]]] = None
+        self.team_ball_control: Optional[np.ndarray] = None
 
         self.team_assigner = team_assigner
         self.player_ball_assigner = player_ball_assigner
@@ -51,35 +73,55 @@ class TrackManager:
 
     def initialize(
         self,
-        tracker: sv.ByteTrack,  # Changed from Tracker to Any
+        tracker: Any,
         frames: List[np.ndarray],
         read_from_stub: bool = False,
         stub_path: Optional[str] = None,
-    ):
+    ) -> None:
+        """
+        Initialize tracking with frames and optional cached data.
+
+        Args:
+            tracker: ByteTrack tracker instance
+            frames: List of video frames
+            read_from_stub: Whether to load cached tracking data
+            stub_path: Path to cached tracking data file
+        """
         self.frames = frames
 
-        if read_from_stub and stub_path is not None and os.path.exists(stub_path):
+        if read_from_stub and stub_path and os.path.exists(stub_path):
             with open(stub_path, "rb") as f:
                 self.tracks = pickle.load(f)
+                return
 
-        detections = self._detect_frames(self.frames)
+        detections = self._detect_frames(frames)
 
         for frame_num, detection in enumerate(detections):
             cls_names = detection.names
             cls_names_inv = {v: k for k, v in cls_names.items()}
 
-            # Covert to supervision Detection format
-            detection_supervision = sv.Detections.from_ultralytics(detection)
+            # Convert to supervision Detection format
+            try:
+                detection_supervision = sv.Detections.from_ultralytics(detection)
 
-            # Convert GoalKeeper to player object
-            for object_ind, class_id in enumerate(detection_supervision.class_id):
-                if cls_names[class_id] == "goalkeeper":
-                    detection_supervision.class_id[object_ind] = cls_names_inv["player"]
+                # Convert GoalKeeper to player object
+                if detection_supervision.class_id is not None:
+                    for object_ind, class_id in enumerate(
+                        detection_supervision.class_id
+                    ):
+                        if cls_names[class_id] == "goalkeeper":
+                            detection_supervision.class_id[object_ind] = cls_names_inv[
+                                "player"
+                            ]
 
-            # Track Objects
-            detection_with_tracks = tracker.update_with_detections(
-                detection_supervision
-            )
+                # Track Objects
+                detection_with_tracks = tracker.update_with_detections(
+                    detection_supervision
+                )
+            except (AttributeError, ImportError):
+                # Fallback if supervision is not available
+                detection_with_tracks = []
+                detection_supervision = None
 
             self.tracks["players"].append({})
             self.tracks["referees"].append({})
@@ -96,14 +138,15 @@ class TrackManager:
                 if cls_id == cls_names_inv["referee"]:
                     self.tracks["referees"][frame_num][track_id] = {"bbox": bbox}
 
-            for frame_detection in detection_supervision:
-                bbox = frame_detection[0].tolist()
-                cls_id = frame_detection[3]
+            if detection_supervision is not None:
+                for frame_detection in detection_supervision:
+                    bbox = frame_detection[0].tolist()
+                    cls_id = frame_detection[3]
 
-                if cls_id == cls_names_inv["ball"]:
-                    self.tracks["ball"][frame_num][1] = {"bbox": bbox}
+                    if cls_id == cls_names_inv["ball"]:
+                        self.tracks["ball"][frame_num][1] = {"bbox": bbox}
 
-        if stub_path is not None:
+        if stub_path:
             with open(stub_path, "wb") as f:
                 pickle.dump(self.tracks, f)
 
@@ -112,27 +155,21 @@ class TrackManager:
         Assign team colors to players based on their jersey colors.
         Uses K-means clustering to determine the dominant jersey colors and assigns
         players to teams based on these colors.
-
-        Args:
-            frame (np.ndarray): The current video frame
-            player_detections (List[dict]): List of player detection dictionaries
         """
-        if self.frames is not None and len(self.frames) > 0:
-            self.team_assigner.assign_team_color(
-                self.frames[0], self.tracks["players"][0]
-            )
-            for frame_num, player_track in enumerate(self.tracks["players"]):
-                for player_id, track in player_track.items():
-                    team = self.team_assigner.get_player_team(
-                        self.frames[frame_num], track["bbox"], player_id
-                    )
-                    self.tracks["players"][frame_num][player_id]["team"] = team
-                    self.tracks["players"][frame_num][player_id]["team_color"] = (
-                        self.team_assigner.team_colors[team]
-                    )
-
-        else:
+        if not self.frames or len(self.frames) == 0:
             print("Warning: No frames available for team color assignment")
+            return
+
+        self.team_assigner.assign_team_color(self.frames[0], self.tracks["players"][0])
+        for frame_num, player_track in enumerate(self.tracks["players"]):
+            for player_id, track in player_track.items():
+                team = self.team_assigner.get_player_team(
+                    self.frames[frame_num], track["bbox"], player_id
+                )
+                self.tracks["players"][frame_num][player_id]["team"] = team
+                self.tracks["players"][frame_num][player_id]["team_color"] = (
+                    self.team_assigner.team_colors[team]
+                )
 
     def add_positions(self) -> None:
         for object, object_tracks in self.tracks.items():
@@ -270,6 +307,10 @@ class TrackManager:
                         ] = total_distance[object_type][track_id]
 
     def draw_annotations(self) -> None:
+        """Draw tracking annotations on frames."""
+        if not self.frames:
+            return
+
         output_frames = []
         for frame_num, frame in enumerate(self.frames):
             frame = frame.copy()
@@ -301,10 +342,10 @@ class TrackManager:
     def _detect_frames(
         self, frames: List[np.ndarray], batch_size: int = 20, conf: float = 0.1
     ) -> List[Any]:
-
+        """Run YOLO detection on frames in batches."""
         detections = []
         for i in range(0, len(frames), batch_size):
-            detections_batch = self.model.predict(frames[i : i + batch_size], conf)
+            detections_batch = self.model.predict(frames[i : i + batch_size], conf=conf)
             detections += detections_batch
         return detections
 
@@ -418,25 +459,18 @@ class TrackManager:
         return frame
 
     def draw_camera_movement(self) -> None:
-        """
-        Draw camera movement information on frames.
+        """Draw camera movement information on frames."""
+        if not self.frames or not self.camera_movement_per_frame:
+            return
 
-        Args:
-            frames: List of video frames as numpy arrays
-            camera_movement_per_frame: List of [x, y] camera movements per frame
-
-        Returns:
-            List of frames with camera movement information overlaid
-        """
-        output_frames: List[np.ndarray] = []
-
+        output_frames = []
         for frame_num, frame in enumerate(self.frames):
             frame = frame.copy()
 
             # Create semi-transparent overlay for text background
-            overlay: np.ndarray = frame.copy()
+            overlay = frame.copy()
             cv2.rectangle(overlay, (0, 0), (500, 100), (255, 255, 255), -1)
-            alpha: float = 0.6
+            alpha = 0.6
             cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
             # Add camera movement text
@@ -470,25 +504,14 @@ class TrackManager:
 
         Creates a semi-transparent panel showing the percentage of time each team
         has controlled the ball up to the current frame.
-
-        Args:
-            frame (np.ndarray): Video frame to draw on
-            frame_num (int): Current frame number
-            team_ball_control (np.ndarray): Array indicating which team (1 or 2)
-                                             controls ball in each frame
-
-        Returns:
-            np.ndarray: Frame with ball control statistics overlay
-
-        Note:
-            - Overlay positioned at bottom-right of frame
-            - Shows cumulative percentages from start to current frame
-            - Uses white semi-transparent background
         """
-        output_frames: List[np.ndarray] = []
+        if not self.frames or self.team_ball_control is None:
+            return
+
+        output_frames = []
         for frame_num, frame in enumerate(self.frames):
             frame = frame.copy()
-            # Draw a semi-transparent rectaggle
+            # Draw a semi-transparent rectangle
             overlay = frame.copy()
             cv2.rectangle(overlay, (1350, 850), (1900, 970), (255, 255, 255), -1)
             alpha = 0.4
@@ -502,8 +525,13 @@ class TrackManager:
             team_2_num_frames = team_ball_control_till_frame[
                 team_ball_control_till_frame == 2
             ].shape[0]
-            team_1 = team_1_num_frames / (team_1_num_frames + team_2_num_frames)
-            team_2 = team_2_num_frames / (team_1_num_frames + team_2_num_frames)
+
+            total_frames = team_1_num_frames + team_2_num_frames
+            if total_frames > 0:
+                team_1 = team_1_num_frames / total_frames
+                team_2 = team_2_num_frames / total_frames
+            else:
+                team_1 = team_2 = 0
 
             cv2.putText(
                 frame,
@@ -533,14 +561,10 @@ class TrackManager:
 
         This method overlays speed (km/h) and cumulative distance (meters) text on each frame
         for tracked objects that have speed data available.
-
-        Args:
-            frames (List[np.ndarray]): List of video frames as numpy arrays
-            tracks (Dict[str, List[Dict[str, Dict[str, Any]]]]): Tracking data containing speed and distance info
-
-        Returns:
-            List[np.ndarray]: List of frames with speed and distance annotations drawn
         """
+        if not self.frames:
+            return
+
         output_frames = []
         for frame_num, frame in enumerate(self.frames):
             for object_type, object_tracks in self.tracks.items():

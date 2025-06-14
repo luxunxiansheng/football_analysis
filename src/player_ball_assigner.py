@@ -14,9 +14,9 @@ class PlayerBallAssigner:
     player's bounding box.
     """
 
-    def __init__(self,max_player_ball_distance:int =70) -> None:
+    def __init__(self, max_player_ball_distance: int = 70) -> None:
         """Initialize the PlayerBallAssigner with default maximum distance."""
-        self.max_player_ball_distance: int = max_player_ball_distance
+        self.max_player_ball_distance = max_player_ball_distance
 
     def assign_ball_to_player(
         self,
@@ -33,25 +33,25 @@ class PlayerBallAssigner:
         Returns:
             Player ID of the assigned player, or -1 if no player is close enough
         """
-        ball_position: Tuple[float, float] = get_center_of_bbox(ball_bbox)
-
-        minimum_distance: float = 99999
-        assigned_player: int = -1
+        ball_position = get_center_of_bbox(ball_bbox)
+        minimum_distance = float("inf")
+        assigned_player = -1
 
         for player_id, player in players.items():
-            player_bbox: List[float] = player["bbox"]
+            player_bbox = player["bbox"]
 
-            distance_left: float = measure_distance(
+            # Calculate distance to left and right edges of player bbox
+            distance_left = measure_distance(
                 (player_bbox[0], player_bbox[-1]), ball_position
             )
-            distance_right: float = measure_distance(
+            distance_right = measure_distance(
                 (player_bbox[2], player_bbox[-1]), ball_position
             )
-            distance: float = min(distance_left, distance_right)
+            distance = min(distance_left, distance_right)
 
-            if distance < self.max_player_ball_distance:
-                if distance < minimum_distance:
-                    minimum_distance = distance
-                    assigned_player = player_id
+            # Assign ball to closest player within threshold
+            if distance < self.max_player_ball_distance and distance < minimum_distance:
+                minimum_distance = distance
+                assigned_player = player_id
 
         return assigned_player

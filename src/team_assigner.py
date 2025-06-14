@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import numpy as np
 from sklearn.cluster import KMeans
 
@@ -19,12 +19,10 @@ class TeamAssigner:
     """
 
     def __init__(self) -> None:
-        """
-        Initialize the TeamAssigner with empty team colors and player assignments.
-        """
+        """Initialize the TeamAssigner with empty team colors and player assignments."""
         self.team_colors: Dict[int, np.ndarray] = {}
         self.player_team_dict: Dict[int, int] = {}
-        self.kmeans: KMeans = None
+        self.kmeans: Optional[KMeans] = None
 
     def get_clustering_model(self, image: np.ndarray) -> KMeans:
         """
@@ -43,12 +41,10 @@ class TeamAssigner:
             Uses k-means++ initialization for better cluster center selection
         """
         # Reshape the image to 2D array (pixels, RGB_channels)
-        image_2d: np.ndarray = image.reshape(-1, 3)
+        image_2d = image.reshape(-1, 3)
 
         # Perform K-means with 2 clusters
-        kmeans: KMeans = KMeans(
-            n_clusters=2, init="k-means++", n_init=1, random_state=42
-        )
+        kmeans = KMeans(n_clusters=2, init="k-means++", n_init=1, random_state=42)
         kmeans.fit(image_2d)
 
         return kmeans
@@ -67,41 +63,36 @@ class TeamAssigner:
 
         Returns:
             np.ndarray: RGB color array representing the player's jersey color
-
-        Raises:
-            IndexError: If bounding box coordinates are invalid
         """
         # Extract player region from frame using bounding box
-        image: np.ndarray = frame[
-            int(bbox[1]) : int(bbox[3]), int(bbox[0]) : int(bbox[2])
-        ]
+        image = frame[int(bbox[1]) : int(bbox[3]), int(bbox[0]) : int(bbox[2])]
 
         # Focus on top half where jersey is most visible
-        top_half_image: np.ndarray = image[0 : int(image.shape[0] / 2), :]
+        top_half_image = image[0 : int(image.shape[0] / 2), :]
 
         # Get clustering model for color separation
-        kmeans: KMeans = self.get_clustering_model(top_half_image)
+        kmeans = self.get_clustering_model(top_half_image)
 
         # Get the cluster labels for each pixel
-        labels: np.ndarray = kmeans.labels_
+        labels = kmeans.labels_
 
         # Reshape labels to match image dimensions
-        clustered_image: np.ndarray = labels.reshape(
+        clustered_image = labels.reshape(
             top_half_image.shape[0], top_half_image.shape[1]
         )
 
         # Identify background cluster using corner pixels (assumes corners are background)
-        corner_clusters: List[int] = [
+        corner_clusters = [
             clustered_image[0, 0],
             clustered_image[0, -1],
             clustered_image[-1, 0],
             clustered_image[-1, -1],
         ]
-        non_player_cluster: int = max(set(corner_clusters), key=corner_clusters.count)
-        player_cluster: int = 1 - non_player_cluster
+        non_player_cluster = max(set(corner_clusters), key=corner_clusters.count)
+        player_cluster = 1 - non_player_cluster
 
         # Extract the dominant player jersey color
-        player_color: np.ndarray = kmeans.cluster_centers_[player_cluster]
+        player_color = kmeans.cluster_centers_[player_cluster]
 
         return player_color
 
@@ -123,25 +114,17 @@ class TeamAssigner:
         Side Effects:
             - Sets self.kmeans with trained clustering model
             - Populates self.team_colors with team color assignments
-
-        Example:
-            player_detections = {
-                1: {"bbox": [100, 200, 150, 300]},
-                2: {"bbox": [200, 180, 250, 280]}
-            }
         """
-        player_colors: List[np.ndarray] = []
+        player_colors = []
 
         # Extract colors from all detected players
         for _, player_detection in player_detections.items():
-            bbox: List[float] = player_detection["bbox"]
-            player_color: np.ndarray = self._get_player_color(frame, bbox)
+            bbox = player_detection["bbox"]
+            player_color = self._get_player_color(frame, bbox)
             player_colors.append(player_color)
 
         # Cluster player colors into two teams
-        kmeans: KMeans = KMeans(
-            n_clusters=2, init="k-means++", n_init=10, random_state=42
-        )
+        kmeans = KMeans(n_clusters=2, init="k-means++", n_init=10, random_state=42)
         kmeans.fit(player_colors)
 
         # Store the trained model and team colors
@@ -179,11 +162,17 @@ class TeamAssigner:
         if player_id in self.player_team_dict:
             return self.player_team_dict[player_id]
 
+        # Check if model is trained
+        if self.kmeans is None:
+            raise AttributeError(
+                "Team colors must be assigned first using assign_team_color()"
+            )
+
         # Extract player's current jersey color
-        player_color: np.ndarray = self._get_player_color(frame, player_bbox)
+        player_color = self._get_player_color(frame, player_bbox)
 
         # Predict team based on color similarity to team clusters
-        team_id: int = self.kmeans.predict(player_color.reshape(1, -1))[0]
+        team_id = self.kmeans.predict(player_color.reshape(1, -1))[0]
         team_id += 1  # Convert from 0-indexed to 1-indexed
 
         # Special case: Force player 91 to team 1 (manual override)
