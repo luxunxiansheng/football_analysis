@@ -15,9 +15,9 @@ from ..domain.models import Detection, PlayerState, TeamColor
 from ..domain.interfaces import TeamColorAnalyzer
 
 
-class ModernTeamColorAnalyzer(TeamColorAnalyzer):
+class KMeansTeamColorAnalyzer(TeamColorAnalyzer):
     """
-    Modern implementation of team color analysis using K-means clustering
+    Implementation of team color analysis using K-means clustering
     and color histogram analysis to determine team assignments.
     """
 

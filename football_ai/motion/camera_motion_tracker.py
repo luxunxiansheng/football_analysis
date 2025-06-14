@@ -12,9 +12,9 @@ from typing import List, Optional, Tuple, Dict, Any
 from ..domain.interfaces import CameraMotionTracker
 
 
-class ModernCameraMotionTracker(CameraMotionTracker):
+class OpticalFlowCameraTracker(CameraMotionTracker):
     """
-    Modern implementation of camera motion tracking using optical flow
+    Implementation of camera motion tracking using optical flow
     and feature-based tracking for robust camera movement estimation.
     """
 

@@ -12,9 +12,9 @@ from typing import List, Dict, Tuple, Optional, Any
 from ..domain.models import Detection, PlayerState, TeamAssignment, TeamColor
 
 
-class ModernVideoRenderer:
+class VideoRenderer:
     """
-    Modern implementation of video rendering with clean annotations
+    Implementation of video rendering with clean annotations
     and professional visualization of football analysis results.
     """
 

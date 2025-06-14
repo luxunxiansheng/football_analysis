@@ -14,8 +14,8 @@ from ..domain.interfaces import ObjectTracker
 from ..domain.models import Detection, ObjectType
 
 
-class ModernByteTracker(ObjectTracker):
-    """Modern ByteTracker implementation."""
+class ByteTracker(ObjectTracker):
+    """ByteTracker implementation for object tracking."""
 
     def __init__(self):
         """Initialize ByteTracker."""

@@ -12,9 +12,9 @@ from typing import List, Tuple, Optional, Dict, Any
 from ..domain.interfaces import CoordinateTransformer
 
 
-class ModernCoordinateTransformer(CoordinateTransformer):
+class PerspectiveCoordinateTransformer(CoordinateTransformer):
     """
-    Modern implementation of coordinate transformation using perspective
+    Implementation of coordinate transformation using perspective
     transformation to map pixel coordinates to real football field coordinates.
     """
 

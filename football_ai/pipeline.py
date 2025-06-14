@@ -22,13 +22,13 @@ from .domain.models import (
     MatchAnalysis,
     BoundingBox,
 )
-from .detection.yolo_detector import ModernYOLODetector
-from .tracking.byte_tracker import ModernByteTracker
-from .analysis.team_color_analyzer import ModernTeamColorAnalyzer
-from .analysis.ball_possession_analyzer import ModernBallPossessionAnalyzer
-from .motion.camera_motion_tracker import ModernCameraMotionTracker
-from .transformation.coordinate_transformer import ModernCoordinateTransformer
-from .rendering.video_renderer import ModernVideoRenderer
+from .detection.yolo_detector import YOLODetector
+from .tracking.byte_tracker import ByteTracker
+from .analysis.team_color_analyzer import KMeansTeamColorAnalyzer
+from .analysis.ball_possession_analyzer import DistanceBasedBallPossessionAnalyzer
+from .motion.camera_motion_tracker import OpticalFlowCameraTracker
+from .transformation.coordinate_transformer import PerspectiveCoordinateTransformer
+from .rendering.video_renderer import VideoRenderer
 from .utils.video_utils import read_video_frames, get_video_properties, VideoWriter
 
 
@@ -80,22 +80,22 @@ class FootballAnalysisPipeline:
         os.makedirs(self.config.processing.output_directory, exist_ok=True)
 
         # Initialize components with configuration
-        self.detector = ModernYOLODetector(
+        self.detector = YOLODetector(
             model_path=self.config.model.model_path,
             confidence_threshold=self.config.model.confidence_threshold,
         )
 
-        self.tracker = ModernByteTracker()
+        self.tracker = ByteTracker()
 
-        self.team_analyzer = ModernTeamColorAnalyzer()
+        self.team_analyzer = KMeansTeamColorAnalyzer()
 
-        self.possession_analyzer = ModernBallPossessionAnalyzer()
+        self.possession_analyzer = DistanceBasedBallPossessionAnalyzer()
 
-        self.camera_tracker = ModernCameraMotionTracker()
+        self.camera_tracker = OpticalFlowCameraTracker()
 
-        self.coordinate_transformer = ModernCoordinateTransformer()
+        self.coordinate_transformer = PerspectiveCoordinateTransformer()
 
-        self.renderer = ModernVideoRenderer()
+        self.renderer = VideoRenderer()
 
         # Analysis results
         self.analysis_results: Optional[MatchAnalysis] = None

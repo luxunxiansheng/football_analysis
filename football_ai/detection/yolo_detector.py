@@ -15,8 +15,8 @@ from ..domain.interfaces import ObjectDetector
 from ..domain.models import Detection, BoundingBox, ObjectType
 
 
-class ModernYOLODetector(ObjectDetector):
-    """Modern YOLO detector with clean architecture."""
+class YOLODetector(ObjectDetector):
+    """YOLO detector implementation with clean architecture."""
 
     def __init__(self, model_path: str, confidence_threshold: float = 0.1):
         """Initialize the YOLO detector."""

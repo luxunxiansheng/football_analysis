@@ -13,9 +13,9 @@ from ..domain.models import Detection, PlayerState, TeamAssignment
 from ..domain.interfaces import BallPossessionAnalyzer
 
 
-class ModernBallPossessionAnalyzer(BallPossessionAnalyzer):
+class DistanceBasedBallPossessionAnalyzer(BallPossessionAnalyzer):
     """
-    Modern implementation of ball possession analysis using distance-based
+    Implementation of ball possession analysis using distance-based
     assignment and temporal smoothing for stable possession detection.
     """
 
