@@ -12,12 +12,14 @@ from tqdm import tqdm
 from .config import FootballAIConfig, get_default_config
 from .domain.models import (
     Detection,
-    PlayerState,
+    FieldEntityState,
+    FieldEntityType,
     ObjectType,
     TeamAssignment,
     MatchAnalysis,
 )
 from .detection.yolo_detector import YOLODetector
+from .detection.yolo_keypoint_detector import YOLOKeypointDetector
 from .tracking.byte_tracker import ByteTracker
 from .analysis.team_color_analyzer import KMeansTeamColorAnalyzer
 from .analysis.ball_possession_analyzer import DistanceBasedBallPossessionAnalyzer
@@ -50,7 +52,7 @@ class FootballAnalysisPipeline:
 
         # Override config with explicit parameters
         if model_path:
-            self.config.model.model_path = model_path
+            self.config.model.player_model_path = model_path
         if output_dir:
             self.config.processing.output_directory = output_dir
         if save_cache is not None:
@@ -69,8 +71,17 @@ class FootballAnalysisPipeline:
 
         # Initialize components
         self.detector = YOLODetector(
-            self.config.model.model_path, self.config.model.confidence_threshold
+            self.config.model.player_model_path, self.config.model.confidence_threshold
         )
+
+        # Initialize keypoint detector if enabled
+        self.keypoint_detector = None
+        if self.config.model.enable_keypoint_detection:
+            self.keypoint_detector = YOLOKeypointDetector(
+                self.config.model.field_model_path,
+                self.config.model.keypoint_confidence_threshold,
+            )
+
         self.tracker = ByteTracker()
         self.team_analyzer = KMeansTeamColorAnalyzer()
         self.possession_analyzer = DistanceBasedBallPossessionAnalyzer()
@@ -83,6 +94,12 @@ class FootballAnalysisPipeline:
         # State
         self.analysis_results: Optional[MatchAnalysis] = None
         self.is_initialized = False
+        self._team_assignments_by_track_id: Dict[int, TeamAssignment] = (
+            {}
+        )  # Cache team assignments by track_id
+        self._team_colors_analyzed = (
+            False  # Track if we've done initial team color analysis
+        )
 
         if self.config.verbose_logging:
             print("Football AI analysis pipeline initialized successfully!")
@@ -111,8 +128,7 @@ class FootballAnalysisPipeline:
 
         # Generate results
         self.analysis_results = self._create_analysis_results(
-            tracking_data["player_tracks"],
-            tracking_data["referee_tracks"],
+            tracking_data["field_entity_tracks"],
             tracking_data["ball_tracks"],
             tracking_data["camera_movements"],
             tracking_data["possession_history"],
@@ -135,25 +151,32 @@ class FootballAnalysisPipeline:
         # Group detections by type
         detection_groups = self._group_detections_by_type(tracked_detections)
 
-        # Create player states and update tracking
-        player_states = self._create_player_states(
-            detection_groups["player"], frame, frame_number, fps
-        )
-        self._update_position_tracking(player_states)
+        # Get all field players (players + goalkeepers) for team color analysis
+        field_players = detection_groups["player"] + detection_groups["goalkeeper"]
+        self._handle_team_color_analysis(frame, frame_number, field_players)
 
-        # Analyze ball possession and team colors
-        possession_info = self.possession_analyzer.analyze_possession(
-            detection_groups["ball"], player_states
+        # Create field entity states for all entities
+        player_entities = self._create_player_states(
+            field_players, frame, frame_number, fps
         )
-        self._handle_team_color_analysis(
-            frame, frame_number, player_states, detection_groups["player"]
+        referee_entities = self._create_referee_states(
+            detection_groups["referee"], frame, frame_number, fps
+        )
+
+        # Combine all field entities and update position tracking
+        all_field_entities = player_entities + referee_entities
+        self._update_position_tracking(all_field_entities)
+
+        # Analyze ball possession with player entities only (referees don't play with ball)
+        possession_info = self.possession_analyzer.analyze_possession(
+            detection_groups["ball"], player_entities
         )
 
         return {
             "frame_number": frame_number,
-            "player_states": player_states,
+            "field_entities": all_field_entities,  # All field entities (players, goalkeepers, referees)
+            "player_entities": player_entities,  # For backward compatibility
             "ball_detections": detection_groups["ball"],
-            "referee_detections": detection_groups["referee"],
             "camera_movement": camera_movement,
             "possession_info": possession_info,
             "team_colors": self.team_analyzer.get_team_colors(),
@@ -167,6 +190,9 @@ class FootballAnalysisPipeline:
             "player": [
                 d for d in tracked_detections if d.object_type == ObjectType.PLAYER
             ],
+            "goalkeeper": [
+                d for d in tracked_detections if d.object_type == ObjectType.GOALKEEPER
+            ],
             "ball": [d for d in tracked_detections if d.object_type == ObjectType.BALL],
             "referee": [
                 d for d in tracked_detections if d.object_type == ObjectType.REFEREE
@@ -179,9 +205,9 @@ class FootballAnalysisPipeline:
         frame: np.ndarray,
         frame_number: int,
         fps: float,
-    ) -> List[PlayerState]:
-        """Create player states with position calculations and team assignment."""
-        player_states = []
+    ) -> List[FieldEntityState]:
+        """Create field entity states with position calculations and team assignment."""
+        field_entities = []
         for detection in player_detections:
             if detection.track_id is None:
                 continue
@@ -198,10 +224,20 @@ class FootballAnalysisPipeline:
             )
             team_assignment = self._assign_player_team(frame, detection)
 
-            player_states.append(
-                PlayerState(
+            # Determine entity type based on object type
+            if detection.object_type == ObjectType.PLAYER:
+                entity_type = FieldEntityType.PLAYER
+            elif detection.object_type == ObjectType.GOALKEEPER:
+                entity_type = FieldEntityType.GOALKEEPER
+            else:
+                # This shouldn't happen for player detections, but handle it gracefully
+                entity_type = FieldEntityType.PLAYER
+
+            field_entities.append(
+                FieldEntityState(
                     track_id=detection.track_id,
                     bbox=detection.bbox,
+                    entity_type=entity_type,
                     team=team_assignment,
                     position=detection.bbox.center,
                     position_adjusted=adjusted_position,
@@ -211,7 +247,7 @@ class FootballAnalysisPipeline:
                     team_assignment_confidence="confirmed",
                 )
             )
-        return player_states
+        return field_entities
 
     def _calculate_movement_metrics(
         self, track_id: int, current_position: Tuple[float, float], fps: float
@@ -233,79 +269,121 @@ class FootballAnalysisPipeline:
     def _assign_player_team(
         self, frame: np.ndarray, detection: Detection
     ) -> TeamAssignment:
-        """Assign team to player using the team color analyzer."""
+        """Assign team to player using cached assignments or analyzer fallback."""
+        if (
+            detection.track_id is not None
+            and detection.track_id in self._team_assignments_by_track_id
+        ):
+            # Use cached assignment - much faster!
+            return self._team_assignments_by_track_id[detection.track_id]
+
+        # Fallback to analyzer if not in cache (shouldn't happen often after initial analysis)
         team_id = self.team_analyzer.assign_player_team(frame, detection)
-        return (
+        team_assignment = (
             TeamAssignment.TEAM_1
             if team_id == 0
             else TeamAssignment.TEAM_2 if team_id == 1 else TeamAssignment.UNKNOWN
         )
 
-    def _update_position_tracking(self, player_states: List[PlayerState]) -> None:
+        # Cache the result for future frames
+        if detection.track_id is not None:
+            self._team_assignments_by_track_id[detection.track_id] = team_assignment
+
+        return team_assignment
+
+    def _update_position_tracking(self, field_entities: List[FieldEntityState]) -> None:
         """Update position tracking for next frame's speed calculation."""
-        for player_state in player_states:
-            if (
-                player_state.track_id is not None
-                and player_state.position_transformed is not None
-            ):
-                self._previous_positions[player_state.track_id] = (
-                    player_state.position_transformed
-                )
+        for entity in field_entities:
+            if entity.track_id is not None and entity.position_transformed is not None:
+                self._previous_positions[entity.track_id] = entity.position_transformed
 
     def _handle_team_color_analysis(
-        self,
-        frame: np.ndarray,
-        frame_number: int,
-        player_states: List[PlayerState],
-        player_detections: List[Detection],
+        self, frame: np.ndarray, frame_number: int, player_detections: List[Detection]
     ) -> None:
-        """Handle team color analysis - simple approach."""
-        if len(player_detections) >= 4:
-            self.team_analyzer.analyze_frame_colors(frame, player_detections)
+        """Handle team color analysis - analyze once and cache by track ID."""
+        # Only analyze if we haven't done it yet and have enough players
+        if not self._team_colors_analyzed and len(player_detections) >= 4:
+            # Analyze team colors once
+            team_colors = self.team_analyzer.analyze_frame_colors(
+                frame, player_detections
+            )
+
+            if team_colors and len(team_colors) >= 2:
+                # Cache team assignments for all current players
+                for detection in player_detections:
+                    if detection.track_id is not None:
+                        team_id = self.team_analyzer.assign_player_team(
+                            frame, detection
+                        )
+                        if team_id == 0:
+                            self._team_assignments_by_track_id[detection.track_id] = (
+                                TeamAssignment.TEAM_1
+                            )
+                        elif team_id == 1:
+                            self._team_assignments_by_track_id[detection.track_id] = (
+                                TeamAssignment.TEAM_2
+                            )
+                        else:
+                            self._team_assignments_by_track_id[detection.track_id] = (
+                                TeamAssignment.UNKNOWN
+                            )
+
+                self._team_colors_analyzed = True
+                print(
+                    f"Team colors analyzed and cached for {len(self._team_assignments_by_track_id)} players at frame {frame_number}"
+                )
+
+        # Handle new players that weren't in the initial analysis
+        elif self._team_colors_analyzed:
+            for detection in player_detections:
+                if (
+                    detection.track_id is not None
+                    and detection.track_id not in self._team_assignments_by_track_id
+                ):
+                    # Assign team for new player using already analyzed team colors
+                    team_id = self.team_analyzer.assign_player_team(frame, detection)
+                    if team_id == 0:
+                        self._team_assignments_by_track_id[detection.track_id] = (
+                            TeamAssignment.TEAM_1
+                        )
+                    elif team_id == 1:
+                        self._team_assignments_by_track_id[detection.track_id] = (
+                            TeamAssignment.TEAM_2
+                        )
+                    else:
+                        self._team_assignments_by_track_id[detection.track_id] = (
+                            TeamAssignment.UNKNOWN
+                        )
 
     def _store_frame_results(
         self,
         frame_results: Dict[str, Any],
         frame_number: int,
-        player_tracks: Dict[int, List[PlayerState]],
-        referee_tracks: Dict[int, List[Dict[str, Any]]],
+        field_entity_tracks: Dict[int, List[FieldEntityState]],
         ball_tracks: List[Dict[int, Dict[str, Any]]],
         camera_movements: List[List[float]],
         possession_history: List[Any],
     ):
         """Store frame results in tracking dictionaries."""
-        self._store_player_tracks(frame_results["player_states"], player_tracks)
-        self._store_referee_tracks(frame_results["referee_detections"], referee_tracks)
+        self._store_field_entity_tracks(
+            frame_results["field_entities"], field_entity_tracks
+        )
         self._store_ball_tracks(
             frame_results["ball_detections"], ball_tracks, frame_number
         )
         camera_movements.append(frame_results["camera_movement"])
         possession_history.append(frame_results["possession_info"])
 
-    def _store_player_tracks(
+    def _store_field_entity_tracks(
         self,
-        player_states: List[PlayerState],
-        player_tracks: Dict[int, List[PlayerState]],
+        field_entities: List[FieldEntityState],
+        field_entity_tracks: Dict[int, List[FieldEntityState]],
     ):
-        """Store player tracking data."""
-        for player_state in player_states:
-            if player_state.track_id not in player_tracks:
-                player_tracks[player_state.track_id] = []
-            player_tracks[player_state.track_id].append(player_state)
-
-    def _store_referee_tracks(
-        self,
-        referee_detections: List[Detection],
-        referee_tracks: Dict[int, List[Dict[str, Any]]],
-    ):
-        """Store referee tracking data."""
-        for referee in referee_detections:
-            if referee.track_id is not None:
-                if referee.track_id not in referee_tracks:
-                    referee_tracks[referee.track_id] = []
-                referee_tracks[referee.track_id].append(
-                    {"bbox": referee.bbox.as_list(), "confidence": referee.confidence}
-                )
+        """Store field entity tracking data for all entities (players, goalkeepers, referees)."""
+        for entity in field_entities:
+            if entity.track_id not in field_entity_tracks:
+                field_entity_tracks[entity.track_id] = []
+            field_entity_tracks[entity.track_id].append(entity)
 
     def _store_ball_tracks(
         self,
@@ -328,11 +406,24 @@ class FootballAnalysisPipeline:
         self, frame: np.ndarray, frame_results: Dict[str, Any]
     ) -> np.ndarray:
         """Render frame with all annotations."""
+        # Create legacy referee detections for renderer compatibility
+        referee_detections = []
+        for entity in frame_results["field_entities"]:
+            if entity.is_referee:
+                referee_detections.append(
+                    Detection(
+                        bbox=entity.bbox,
+                        object_type=ObjectType.REFEREE,
+                        track_id=entity.track_id,
+                        confidence=1.0,
+                    )
+                )
+
         return self.renderer.render_frame(
             frame=frame,
-            player_states=frame_results["player_states"],
+            player_states=frame_results["player_entities"],  # Player entities only
             ball_detections=frame_results["ball_detections"],
-            referee_detections=frame_results["referee_detections"],
+            referee_detections=referee_detections,  # Convert back for renderer
             team_colors=frame_results["team_colors"],
             possession_info=frame_results["possession_info"],
             camera_movement=frame_results["camera_movement"],
@@ -340,8 +431,7 @@ class FootballAnalysisPipeline:
 
     def _create_analysis_results(
         self,
-        player_tracks: Dict[int, List[PlayerState]],
-        referee_tracks: Dict[int, List[Dict[str, Any]]],
+        field_entity_tracks: Dict[int, List[FieldEntityState]],
         ball_tracks: List[Dict[int, Dict[str, Any]]],
         camera_movements: List[List[float]],
         possession_history: List[Any],
@@ -349,9 +439,17 @@ class FootballAnalysisPipeline:
     ) -> MatchAnalysis:
         """Create final analysis results."""
 
-        # Calculate team ball control
+        # Calculate team ball control from player entities only
         # Create frame-by-frame player states for possession analysis
         frame_player_states = []
+
+        # Extract player tracks from field entity tracks
+        player_tracks = {}
+        for track_id, entity_track in field_entity_tracks.items():
+            player_entities = [entity for entity in entity_track if entity.is_player]
+            if player_entities:
+                player_tracks[track_id] = player_entities
+
         max_frames = (
             max(len(states) for states in player_tracks.values())
             if player_tracks
@@ -378,8 +476,7 @@ class FootballAnalysisPipeline:
         )
 
         return MatchAnalysis(
-            player_tracks=player_tracks,
-            referee_tracks=referee_tracks,
+            field_entity_tracks=field_entity_tracks,
             ball_tracks=ball_tracks,
             team_ball_control=team_ball_control,
             camera_movement=camera_movements,
@@ -444,9 +541,10 @@ class FootballAnalysisPipeline:
     def _initialize_tracking_data(self) -> Dict[str, Any]:
         """Initialize all tracking data structures."""
         self._previous_positions: Dict[int, Tuple[float, float]] = {}
+        self._team_assignments_by_track_id = {}  # Reset team assignment cache
+        self._team_colors_analyzed = False  # Reset team color analysis flag
         return {
-            "player_tracks": {},
-            "referee_tracks": {},
+            "field_entity_tracks": {},
             "ball_tracks": [],
             "camera_movements": [],
             "possession_history": [],
@@ -490,8 +588,7 @@ class FootballAnalysisPipeline:
                     self._store_frame_results(
                         frame_results,
                         frame_count,
-                        tracking_data["player_tracks"],
-                        tracking_data["referee_tracks"],
+                        tracking_data["field_entity_tracks"],
                         tracking_data["ball_tracks"],
                         tracking_data["camera_movements"],
                         tracking_data["possession_history"],
@@ -546,3 +643,43 @@ class FootballAnalysisPipeline:
                 else None
             ),
         }
+
+    def _create_referee_states(
+        self,
+        referee_detections: List[Detection],
+        frame: np.ndarray,
+        frame_number: int,
+        fps: float,
+    ) -> List[FieldEntityState]:
+        """Create referee field entity states with basic tracking information."""
+        referee_entities = []
+        for detection in referee_detections:
+            if detection.track_id is None:
+                continue
+
+            # Basic position calculations (referees don't need team assignment or advanced metrics)
+            adjusted_position = self.camera_tracker.get_adjusted_position(
+                detection.bbox.center, frame_number
+            )
+            field_position = self.coordinate_transformer.transform_point(
+                adjusted_position
+            )
+            speed, distance = self._calculate_movement_metrics(
+                detection.track_id, field_position, fps
+            )
+
+            referee_entities.append(
+                FieldEntityState(
+                    track_id=detection.track_id,
+                    bbox=detection.bbox,
+                    entity_type=FieldEntityType.REFEREE,
+                    team=None,  # Referees have no team assignment
+                    position=detection.bbox.center,
+                    position_adjusted=adjusted_position,
+                    position_transformed=field_position,
+                    speed=speed,
+                    distance=distance,
+                    team_assignment_confidence="confirmed",  # Not applicable but required
+                )
+            )
+        return referee_entities

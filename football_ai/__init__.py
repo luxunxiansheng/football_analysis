@@ -15,7 +15,8 @@ from .config import (
 )
 from .domain.models import (
     Detection,
-    PlayerState,
+    FieldEntityState,
+    FieldEntityType,
     ObjectType,
     TeamAssignment,
     TeamColor,
@@ -29,7 +30,8 @@ __author__ = "Football AI Team"
 __all__ = [
     "FootballAnalysisPipeline",
     "Detection",
-    "PlayerState",
+    "FieldEntityState",
+    "FieldEntityType",
     "ObjectType",
     "TeamAssignment",
     "TeamColor",

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 
-from .models import Detection, PlayerState, BoundingBox, TeamColor
+from .models import Detection, FieldEntityState, BoundingBox, TeamColor, PlayerKeypoints
 
 
 class ObjectDetector(ABC):
@@ -15,6 +15,22 @@ class ObjectDetector(ABC):
     @abstractmethod
     def detect(self, frame: np.ndarray) -> List[Detection]:
         """Detect objects in a single frame."""
+        pass
+
+
+class KeypointDetector(ABC):
+    """Interface for pose/keypoint detection in football videos."""
+
+    @abstractmethod
+    def detect_keypoints(self, frame: np.ndarray) -> List[PlayerKeypoints]:
+        """Detect pose keypoints for players in a single frame."""
+        pass
+
+    @abstractmethod
+    def detect_keypoints_from_detections(
+        self, frame: np.ndarray, detections: List[Detection]
+    ) -> List[PlayerKeypoints]:
+        """Detect pose keypoints for specific player detections."""
         pass
 
 
@@ -50,7 +66,7 @@ class BallPossessionAnalyzer(ABC):
 
     @abstractmethod
     def analyze_possession(
-        self, ball_detections: List[Detection], player_states: List[PlayerState]
+        self, ball_detections: List[Detection], player_states: List[FieldEntityState]
     ) -> Dict[str, Any]:
         """Analyze ball possession for the current frame."""
         pass

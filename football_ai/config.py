@@ -15,12 +15,18 @@ import json
 class ModelConfig:
     """Configuration for AI models and detection parameters."""
 
-    # YOLO Model Configuration
-    model_path: str = "models/best.pt"
+    # YOLO Detection Model Configuration
+    player_model_path: str = "models/detect/best.pt"
     confidence_threshold: float = 0.5
     iou_threshold: float = 0.45
     max_detections: int = 1000
     device: str = "auto"  # "auto", "cpu", "cuda", "mps"
+
+    # YOLO Keypoint Model Configuration
+    field_model_path: str = "models/pose/best.pt"
+    keypoint_confidence_threshold: float = 0.5
+    keypoint_iou_threshold: float = 0.45
+    enable_keypoint_detection: bool = True
 
     # Object Detection Classes
     player_class_ids: List[int] = field(default_factory=lambda: [0])
@@ -161,6 +167,14 @@ class RenderingConfig:
     show_speeds: bool = True
     show_positions: bool = True
     show_field_coordinates: bool = False
+    show_keypoints: bool = False
+
+    # Keypoint Visualization
+    keypoint_radius: int = 3
+    keypoint_thickness: int = 2
+    show_pose_skeleton: bool = True
+    skeleton_thickness: int = 2
+    keypoint_confidence_threshold: float = 0.5
 
     # Track Visualization
     max_track_length: int = 30
@@ -184,6 +198,8 @@ class RenderingConfig:
             "track": (200, 200, 200),  # Light gray
             "text": (255, 255, 255),  # White
             "background": (0, 0, 0),  # Black
+            "keypoint": (0, 255, 255),  # Cyan
+            "skeleton": (255, 128, 0),  # Orange
         }
     )
 
@@ -322,13 +338,16 @@ class FootballAIConfig:
     def update_paths(
         self,
         model_path: Optional[str] = None,
+        keypoint_model_path: Optional[str] = None,
         input_video_path: Optional[str] = None,
         output_video_path: Optional[str] = None,
         output_directory: Optional[str] = None,
     ) -> None:
         """Convenience method to update common paths."""
         if model_path:
-            self.model.model_path = model_path
+            self.model.player_model_path = model_path
+        if keypoint_model_path:
+            self.model.field_model_path = keypoint_model_path
         if input_video_path:
             self.processing.input_video_path = input_video_path
         if output_video_path:
@@ -341,8 +360,20 @@ class FootballAIConfig:
         issues = []
 
         # Validate file paths
-        if self.model.model_path and not Path(self.model.model_path).exists():
-            issues.append(f"Model file not found: {self.model.model_path}")
+        if (
+            self.model.player_model_path
+            and not Path(self.model.player_model_path).exists()
+        ):
+            issues.append(f"Model file not found: {self.model.player_model_path}")
+
+        if (
+            self.model.enable_keypoint_detection
+            and self.model.field_model_path
+            and not Path(self.model.field_model_path).exists()
+        ):
+            issues.append(
+                f"Keypoint model file not found: {self.model.field_model_path}"
+            )
 
         if (
             self.processing.input_video_path
@@ -357,6 +388,15 @@ class FootballAIConfig:
         if not 0 <= self.model.iou_threshold <= 1:
             issues.append("Model IoU threshold must be between 0 and 1")
 
+        if self.model.enable_keypoint_detection:
+            if not 0 <= self.model.keypoint_confidence_threshold <= 1:
+                issues.append(
+                    "Keypoint model confidence threshold must be between 0 and 1"
+                )
+
+            if not 0 <= self.model.keypoint_iou_threshold <= 1:
+                issues.append("Keypoint model IoU threshold must be between 0 and 1")
+
         # Validate field dimensions
         if (
             self.transformation.field_width <= 0
@@ -370,12 +410,18 @@ class FootballAIConfig:
         """Get a human-readable summary of the configuration."""
         summary = []
         summary.append("=== Football AI Configuration Summary ===")
-        summary.append(f"Model: {Path(self.model.model_path).name}")
+        summary.append(f"Detection Model: {Path(self.model.player_model_path).name}")
+        summary.append(
+            f"Keypoint Model: {Path(self.model.field_model_path).name if self.model.enable_keypoint_detection else 'Disabled'}"
+        )
         summary.append(
             f"Input Video: {Path(self.processing.input_video_path).name if self.processing.input_video_path else 'Not set'}"
         )
         summary.append(f"Output Directory: {self.processing.output_directory}")
         summary.append(f"Detection Confidence: {self.model.confidence_threshold}")
+        summary.append(
+            f"Keypoint Detection: {'Enabled' if self.model.enable_keypoint_detection else 'Disabled'}"
+        )
         summary.append(f"Tracking Enabled: {self.tracking.track_threshold > 0}")
         summary.append(f"Team Analysis: {self.team_analysis.n_clusters} teams")
         summary.append(
@@ -400,10 +446,15 @@ class FootballAIConfig:
 def get_default_config() -> FootballAIConfig:
     """Get default configuration for general use."""
     config = FootballAIConfig()
-    # Set default model path to absolute path if it exists
-    default_model_path = "/workspaces/football_analysis/models/best.pt"
+    # Set default model paths to absolute paths if they exist
+    default_model_path = "/workspaces/football_analysis/models/detect/best.pt"
     if Path(default_model_path).exists():
-        config.model.model_path = default_model_path
+        config.model.player_model_path = default_model_path
+
+    default_keypoint_model_path = "/workspaces/football_analysis/models/pose/best.pt"
+    if Path(default_keypoint_model_path).exists():
+        config.model.field_model_path = default_keypoint_model_path
+
     return config
 
 

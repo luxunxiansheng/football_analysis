@@ -20,6 +20,14 @@ class ObjectType(Enum):
     BALL = "ball"
 
 
+class FieldEntityType(Enum):
+    """Types of field entities (human actors on the field)."""
+
+    PLAYER = "player"
+    GOALKEEPER = "goalkeeper"
+    REFEREE = "referee"
+
+
 class TeamAssignment(Enum):
     """Team assignment identifications."""
 
@@ -98,11 +106,12 @@ class Detection:
 
 
 @dataclass
-class PlayerState:
-    """Complete state information for a player."""
+class FieldEntityState:
+    """Complete state information for a field entity (player, goalkeeper, or referee)."""
 
     track_id: int
     bbox: BoundingBox
+    entity_type: FieldEntityType
     team: Optional[TeamAssignment] = None
     team_color: Optional[Tuple[int, int, int]] = None
     has_ball: bool = False
@@ -112,10 +121,27 @@ class PlayerState:
     speed: Optional[float] = None  # km/h
     distance: Optional[float] = None  # meters
     team_assignment_confidence: str = "preliminary"  # "preliminary" or "confirmed"
+    keypoints: Optional["PlayerKeypoints"] = None  # Pose keypoints if available
+
+    @property
+    def is_player(self) -> bool:
+        """Check if this entity is a player (player or goalkeeper)."""
+        return self.entity_type in [FieldEntityType.PLAYER, FieldEntityType.GOALKEEPER]
+
+    @property
+    def is_goalkeeper(self) -> bool:
+        """Check if this entity is a goalkeeper."""
+        return self.entity_type == FieldEntityType.GOALKEEPER
+
+    @property
+    def is_referee(self) -> bool:
+        """Check if this entity is a referee."""
+        return self.entity_type == FieldEntityType.REFEREE
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary format for compatibility."""
         return {
+            "entity_type": self.entity_type.value,
             "bbox": self.bbox.as_list(),
             "team": self.team.value if self.team else None,
             "team_color": self.team_color,
@@ -126,6 +152,7 @@ class PlayerState:
             "speed": self.speed,
             "distance": self.distance,
             "team_assignment_confidence": self.team_assignment_confidence,
+            "keypoints": self.keypoints.keypoints if self.keypoints else None,
         }
 
 
@@ -133,10 +160,63 @@ class PlayerState:
 class MatchAnalysis:
     """Complete analysis results for a football match."""
 
-    player_tracks: Dict[int, List[PlayerState]]
-    referee_tracks: Dict[int, List[Dict[str, Any]]]
+    field_entity_tracks: Dict[
+        int, List[FieldEntityState]
+    ]  # All field entities (players, goalkeepers, referees)
     ball_tracks: List[Dict[int, Dict[str, Any]]]
     team_ball_control: np.ndarray
     camera_movement: List[List[float]]
     total_frames: int
     fps: float = 24.0
+
+
+@dataclass
+class PlayerKeypoints:
+    """Represents pose keypoints for a detected player."""
+
+    keypoints: List[Tuple[float, float, float]]  # (x, y, confidence) for each keypoint
+    bbox: BoundingBox
+    track_id: Optional[int] = None
+    confidence: float = 1.0
+
+    # Standard COCO pose keypoint indices
+    NOSE = 0
+    LEFT_EYE = 1
+    RIGHT_EYE = 2
+    LEFT_EAR = 3
+    RIGHT_EAR = 4
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
+    LEFT_ELBOW = 7
+    RIGHT_ELBOW = 8
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+    LEFT_HIP = 11
+    RIGHT_HIP = 12
+    LEFT_KNEE = 13
+    RIGHT_KNEE = 14
+    LEFT_ANKLE = 15
+    RIGHT_ANKLE = 16
+
+    def get_keypoint(self, index: int) -> Optional[Tuple[float, float, float]]:
+        """Get specific keypoint by index."""
+        if 0 <= index < len(self.keypoints):
+            return self.keypoints[index]
+        return None
+
+    def get_visible_keypoints(
+        self, min_confidence: float = 0.5
+    ) -> List[Tuple[float, float, float]]:
+        """Get all keypoints above confidence threshold."""
+        return [kp for kp in self.keypoints if kp[2] >= min_confidence]
+
+    @property
+    def center_of_mass(self) -> Optional[Tuple[float, float]]:
+        """Calculate center of mass from visible keypoints."""
+        visible = self.get_visible_keypoints()
+        if not visible:
+            return None
+
+        x = sum(kp[0] for kp in visible) / len(visible)
+        y = sum(kp[1] for kp in visible) / len(visible)
+        return (x, y)

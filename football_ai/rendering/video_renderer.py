@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Any
 
-from ..domain.models import Detection, PlayerState, TeamAssignment, TeamColor
+from ..domain.models import Detection, FieldEntityState, TeamAssignment, TeamColor
 
 
 class VideoRenderer:
@@ -62,7 +62,7 @@ class VideoRenderer:
     def render_frame(
         self,
         frame: np.ndarray,
-        player_states: List[PlayerState],
+        player_states: List[FieldEntityState],
         ball_detections: List[Detection],
         referee_detections: List[Detection],
         team_colors: Optional[Dict[int, TeamColor]] = None,
@@ -129,7 +129,7 @@ class VideoRenderer:
     def _draw_player(
         self,
         frame: np.ndarray,
-        player: PlayerState,
+        player: FieldEntityState,
         team_colors: Optional[Dict[int, TeamColor]] = None,
         possession_info: Optional[Dict[str, Any]] = None,
     ) -> np.ndarray:

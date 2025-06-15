@@ -9,7 +9,7 @@ import numpy as np
 from typing import List, Dict, Optional, Tuple, Any
 from collections import deque, Counter
 
-from ..domain.models import Detection, PlayerState, TeamAssignment
+from ..domain.models import Detection, FieldEntityState, TeamAssignment
 from ..domain.interfaces import BallPossessionAnalyzer
 
 
@@ -44,7 +44,7 @@ class DistanceBasedBallPossessionAnalyzer(BallPossessionAnalyzer):
         self._possession_confidence: int = 0
 
     def analyze_possession(
-        self, ball_detections: List[Detection], player_states: List[PlayerState]
+        self, ball_detections: List[Detection], player_states: List[FieldEntityState]
     ) -> Dict[str, Any]:
         """
         Analyze ball possession for the current frame.
@@ -149,7 +149,7 @@ class DistanceBasedBallPossessionAnalyzer(BallPossessionAnalyzer):
         }
 
     def get_possession_stats(
-        self, player_states_history: List[List[PlayerState]]
+        self, player_states_history: List[List[FieldEntityState]]
     ) -> Dict[str, float]:
         """
         Calculate overall possession statistics from match history.
@@ -202,7 +202,7 @@ class DistanceBasedBallPossessionAnalyzer(BallPossessionAnalyzer):
         return float(np.sqrt((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2))
 
     def _calculate_team_possession(
-        self, player_states: List[PlayerState], possessor_id: Optional[int]
+        self, player_states: List[FieldEntityState], possessor_id: Optional[int]
     ) -> Optional[TeamAssignment]:
         """Determine which team has possession based on the possessor."""
         if possessor_id is None:

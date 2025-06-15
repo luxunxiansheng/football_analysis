@@ -177,3 +177,22 @@ class KMeansTeamColorAnalyzer(TeamColorAnalyzer):
     def reset(self):
         """Reset analyzer state."""
         self.team_colors = None
+
+    def get_referee_color(self) -> TeamColor:
+        """Get the referee color (typically black or distinctive from teams)."""
+        return TeamColor(id=99, primary_color=(0, 0, 0), name="Referee")
+
+    def assign_referee_color(
+        self, frame: np.ndarray, detection: Detection
+    ) -> TeamColor:
+        """Assign color to referee (typically black/distinctive)."""
+        # Extract the referee's color
+        referee_color = self._extract_player_color(frame, detection)
+        if referee_color is not None:
+            # Return a referee-specific color
+            return TeamColor(
+                id=99, primary_color=tuple(referee_color.astype(int)), name="Referee"
+            )
+        else:
+            # Default referee color (black)
+            return self.get_referee_color()
