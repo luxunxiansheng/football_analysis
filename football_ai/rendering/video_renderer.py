@@ -158,9 +158,29 @@ class VideoRenderer:
                 int(player.team_color[0]),
             )
 
-        # Draw bounding box
-        thickness = 3 if player.has_ball else 2
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+        # Draw bounding box with different styles for preliminary vs confirmed
+        if (
+            hasattr(player, "team_assignment_confidence")
+            and player.team_assignment_confidence == "preliminary"
+        ):
+            # Dashed line for preliminary assignments
+            thickness = 3 if player.has_ball else 2
+            self._draw_dashed_rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+
+            # Add small "P" indicator for preliminary
+            cv2.putText(
+                frame,
+                "P",
+                (x2 - 15, y1 + 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                color,
+                1,
+            )
+        else:
+            # Solid line for confirmed assignments
+            thickness = 3 if player.has_ball else 2
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
 
         # Draw possession indicator
         if self.show_ball_possession and player.has_ball:
@@ -456,3 +476,73 @@ class VideoRenderer:
     def get_track_history(self) -> Dict[int, List[Tuple[int, int]]]:
         """Get current track history."""
         return self.track_history.copy()
+
+    def _draw_dashed_rectangle(
+        self,
+        frame: np.ndarray,
+        pt1: Tuple[int, int],
+        pt2: Tuple[int, int],
+        color: Tuple[int, int, int],
+        thickness: int,
+        dash_length: int = 8,
+    ) -> None:
+        """Draw a dashed rectangle for preliminary team assignments."""
+        x1, y1 = pt1
+        x2, y2 = pt2
+
+        # Draw dashed lines for each side of the rectangle
+        self._draw_dashed_line(
+            frame, (x1, y1), (x2, y1), color, thickness, dash_length
+        )  # Top
+        self._draw_dashed_line(
+            frame, (x2, y1), (x2, y2), color, thickness, dash_length
+        )  # Right
+        self._draw_dashed_line(
+            frame, (x2, y2), (x1, y2), color, thickness, dash_length
+        )  # Bottom
+        self._draw_dashed_line(
+            frame, (x1, y2), (x1, y1), color, thickness, dash_length
+        )  # Left
+
+    def _draw_dashed_line(
+        self,
+        frame: np.ndarray,
+        pt1: Tuple[int, int],
+        pt2: Tuple[int, int],
+        color: Tuple[int, int, int],
+        thickness: int,
+        dash_length: int = 8,
+    ) -> None:
+        """Draw a dashed line between two points."""
+        x1, y1 = pt1
+        x2, y2 = pt2
+
+        # Calculate line parameters
+        dx = x2 - x1
+        dy = y2 - y1
+        line_length = np.sqrt(dx**2 + dy**2)
+
+        if line_length == 0:
+            return
+
+        # Normalize direction
+        unit_x = dx / line_length
+        unit_y = dy / line_length
+
+        # Draw dashed line
+        current_length = 0
+        draw_dash = True
+
+        while current_length < line_length:
+            next_length = min(current_length + dash_length, line_length)
+
+            if draw_dash:
+                start_x = int(x1 + current_length * unit_x)
+                start_y = int(y1 + current_length * unit_y)
+                end_x = int(x1 + next_length * unit_x)
+                end_y = int(y1 + next_length * unit_y)
+
+                cv2.line(frame, (start_x, start_y), (end_x, end_y), color, thickness)
+
+            current_length = next_length
+            draw_dash = not draw_dash

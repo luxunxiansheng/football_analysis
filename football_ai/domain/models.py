@@ -111,6 +111,7 @@ class PlayerState:
     position_transformed: Optional[Tuple[float, float]] = None
     speed: Optional[float] = None  # km/h
     distance: Optional[float] = None  # meters
+    team_assignment_confidence: str = "preliminary"  # "preliminary" or "confirmed"
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary format for compatibility."""
@@ -124,6 +125,7 @@ class PlayerState:
             "position_transformed": self.position_transformed,
             "speed": self.speed,
             "distance": self.distance,
+            "team_assignment_confidence": self.team_assignment_confidence,
         }
 
 

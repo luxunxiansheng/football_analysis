@@ -68,6 +68,17 @@ class TeamAnalysisConfig:
     max_pixel_intensity: int = 220
     color_distance_threshold: float = 50.0
 
+    # Timing Configuration
+    enable_retry_analysis: bool = True
+    max_analysis_attempts: int = 5
+    min_players_for_analysis: int = 4
+    analysis_start_frame: int = 30
+    early_analysis_interval: int = 30  # Every 1 second at 30fps (frames 30-300)
+    mid_analysis_interval: int = 150  # Every 5 seconds at 30fps (frames 300-900)
+    late_analysis_interval: int = 300  # Every 10 seconds at 30fps (after frame 900)
+    early_analysis_end_frame: int = 300
+    mid_analysis_end_frame: int = 900
+
 
 @dataclass
 class PossessionConfig:
@@ -126,7 +137,9 @@ class TransformationConfig:
     calibration_confidence_threshold: float = 0.8
 
     # Default field keypoints (for manual strategy)
-    default_keypoints: Optional[List[List[float]]] = None
+    default_keypoints: Optional[List[List[float]]] = field(
+        default_factory=lambda: [[110, 1035], [265, 275], [910, 260], [1640, 915]]
+    )
 
     # Auto-detection Parameters
     detection_retry_frames: int = 10  # Retry detection every N frames if failed
