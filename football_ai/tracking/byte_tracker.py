@@ -2,13 +2,11 @@
 Modern object tracker using ByteTrack.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List
 import numpy as np
 
-try:
-    import supervision as sv
-except ImportError:
-    sv = None
+from supervision.tracker.byte_tracker.core import ByteTrack
+from supervision.detection.core import Detections
 
 from ..domain.interfaces import ObjectTracker
 from ..domain.models import Detection, ObjectType
@@ -19,9 +17,7 @@ class ByteTracker(ObjectTracker):
 
     def __init__(self):
         """Initialize ByteTracker."""
-        if sv is None:
-            raise ImportError("supervision library required for tracking")
-        self.tracker = sv.ByteTrack()
+        self.tracker = ByteTrack()
 
     def track_objects(self, detections: List[Detection]) -> List[Detection]:
         """Track objects and assign track IDs."""
@@ -48,7 +44,7 @@ class ByteTracker(ObjectTracker):
             confidences.append(det.confidence)
             class_ids.append(0)  # Use same class ID for all trackable objects
 
-        sv_detections = sv.Detections(
+        sv_detections = Detections(
             xyxy=np.array(boxes),
             confidence=np.array(confidences),
             class_id=np.array(class_ids),
@@ -63,7 +59,11 @@ class ByteTracker(ObjectTracker):
 
         for detection in detections:
             if detection.object_type in [ObjectType.PLAYER, ObjectType.GOALKEEPER]:
-                if trackable_idx < len(tracked_detections.tracker_id):
+                if (
+                    hasattr(tracked_detections, "tracker_id")
+                    and tracked_detections.tracker_id is not None
+                    and trackable_idx < len(tracked_detections.tracker_id)
+                ):
                     detection.track_id = int(
                         tracked_detections.tracker_id[trackable_idx]
                     )

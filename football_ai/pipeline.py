@@ -8,6 +8,7 @@ import pickle
 import os.path
 import contextlib
 from tqdm import tqdm
+import logging
 
 from .config import FootballAIConfig, get_default_config
 from .domain.models import (
@@ -29,6 +30,8 @@ from .motion.camera_motion_tracker import OpticalFlowCameraTracker
 from .transformation.coordinate_transformer import PerspectiveCoordinateTransformer
 from .rendering.video_renderer import VideoRenderer
 from .utils.video_utils import read_video_frames, get_video_properties, VideoWriter
+
+logger = logging.getLogger("football_ai.pipeline")
 
 
 class FootballAnalysisPipeline:
@@ -65,9 +68,9 @@ class FootballAnalysisPipeline:
         # Validate and create output directory
         validation_issues = self.config.validate()
         if validation_issues:
-            print("Configuration warnings:")
+            logger.warning("Configuration warnings:")
             for issue in validation_issues:
-                print(f"  - {issue}")
+                logger.warning(f"  - {issue}")
 
         os.makedirs(self.config.processing.output_directory, exist_ok=True)
 
@@ -102,9 +105,9 @@ class FootballAnalysisPipeline:
         )
 
         if self.config.verbose_logging:
-            print("Football AI analysis pipeline initialized successfully!")
+            logger.info("Football AI analysis pipeline initialized successfully!")
             if self.config.debug_mode:
-                print(self.config.get_summary())
+                logger.info(self.config.get_summary())
 
     def process_video(
         self, video_path: str, output_video_path: Optional[str] = None
@@ -119,7 +122,7 @@ class FootballAnalysisPipeline:
         - Generate final analysis results
         - Save results and cache
         """
-        print(f"Starting analysis of video: {video_path}")
+        logger.info(f"Starting analysis of video: {video_path}")
 
         # Check for cached results first
         cached_results = self._check_cache()
@@ -142,7 +145,7 @@ class FootballAnalysisPipeline:
         # Save results and cache
         self._save_results()
 
-        print("Video analysis completed successfully")
+        logger.info("Video analysis completed successfully")
         return self.analysis_results
 
     # ==================== MAIN PIPELINE STEPS ====================
@@ -160,15 +163,15 @@ class FootballAnalysisPipeline:
         if not (self.config.processing.load_from_cache and os.path.exists(cache_path)):
             return None
 
-        print("Loading cached analysis results...")
+        logger.info("Loading cached analysis results...")
         try:
             with open(cache_path, "rb") as f:
                 cached_results = pickle.load(f)
             self.analysis_results = cached_results
-            print("Cached results loaded successfully")
+            logger.info("Cached results loaded successfully")
             return cached_results
         except Exception as e:
-            print(f"Failed to load cache: {e}")
+            logger.error(f"Failed to load cache: {e}")
             return None
 
     def _setup_processing(
@@ -180,18 +183,18 @@ class FootballAnalysisPipeline:
         Initializes video properties, tracking data structures, and output writer.
         Prepares the pipeline for frame-by-frame processing.
         """
-        print("Setting up video processing environment...")
+        logger.info("Setting up video processing environment...")
 
         # Get video properties
         video_props = get_video_properties(video_path)
-        print(f"Video properties: {video_props}")
+        logger.info(f"Video properties: {video_props}")
 
         # Setup field keypoints
         keypoints = self.coordinate_transformer.get_field_corners()
         if keypoints:
-            print("Using configured field keypoints")
+            logger.info("Using configured field keypoints")
         else:
-            print("No field keypoints configured")
+            logger.info("No field keypoints configured")
 
         # Initialize tracking data structures
         self._previous_positions: Dict[int, Tuple[float, float]] = {}
@@ -213,7 +216,7 @@ class FootballAnalysisPipeline:
                 fps=video_props["fps"],
                 frame_size=(video_props["width"], video_props["height"]),
             )
-            print(f"Output video will be saved to: {output_video_path}")
+            logger.info(f"Output video will be saved to: {output_video_path}")
 
         return video_props, tracking_data, video_writer
 
@@ -235,7 +238,7 @@ class FootballAnalysisPipeline:
         - Ball possession analysis
         - Frame rendering (optional)
         """
-        print("Starting frame-by-frame processing...")
+        logger.info("Starting frame-by-frame processing...")
         frame_count = 0
 
         try:
@@ -265,10 +268,10 @@ class FootballAnalysisPipeline:
                     frame_count += 1
 
         except Exception as e:
-            print(f"Error during video processing: {e}")
+            logger.error(f"Error during video processing: {e}")
             raise
 
-        print(f"Processed {frame_count} frames successfully")
+        logger.info(f"Processed {frame_count} frames successfully")
         return frame_count
 
     def _generate_final_results(
@@ -280,7 +283,7 @@ class FootballAnalysisPipeline:
         Compiles all frame-by-frame data into comprehensive match analysis,
         including possession statistics and movement analytics.
         """
-        print("Generating final analysis results...")
+        logger.info("Generating final analysis results...")
 
         # Extract components from tracking data
         field_entity_tracks = tracking_data["field_entity_tracks"]
@@ -311,7 +314,7 @@ class FootballAnalysisPipeline:
             fps=video_props["fps"],
         )
 
-        print(
+        logger.info(
             f"Analysis complete: {len(field_entity_tracks)} entity tracks, "
             f"{len(ball_tracks)} ball tracks, {analysis.total_frames} frames"
         )
@@ -325,7 +328,7 @@ class FootballAnalysisPipeline:
         Saves the complete analysis to cache file if caching is enabled.
         """
         if not self.config.processing.save_to_cache:
-            print("Caching disabled, skipping cache save")
+            logger.info("Caching disabled, skipping cache save")
             return
 
         try:
@@ -334,9 +337,9 @@ class FootballAnalysisPipeline:
             )
             with open(cache_path, "wb") as f:
                 pickle.dump(self.analysis_results, f)
-            print(f"Analysis results cached successfully to: {cache_path}")
+            logger.info(f"Analysis results cached successfully to: {cache_path}")
         except Exception as e:
-            print(f"Failed to save cache: {e}")
+            logger.warning(f"Failed to save cache: {e}")
 
     # ==================== FRAME PROCESSING METHODS ====================
 
@@ -363,7 +366,14 @@ class FootballAnalysisPipeline:
 
         # Team color analysis and player assignment
         field_players = detection_groups["player"] + detection_groups["goalkeeper"]
-        self._handle_team_color_analysis(frame, frame_number, field_players)
+      
+        if not self._team_colors_analyzed:
+            self._perform_initial_team_color_analysis(
+                frame, frame_number, field_players
+            )
+        else:
+            self._assign_new_players_to_established_teams(frame, field_players)
+
 
         # Create entity states with position calculations
         player_entities = self._create_player_states(
@@ -518,7 +528,7 @@ class FootballAnalysisPipeline:
         # Generate possession statistics
         return self.possession_analyzer.get_possession_stats(frame_player_states)
 
-    # ==================== TEAM ANALYSIS METHODS ====================
+  
 
     # ==================== OBJECT DETECTION AND TRACKING METHODS ====================
 
@@ -632,22 +642,7 @@ class FootballAnalysisPipeline:
             if entity.track_id is not None and entity.position_transformed is not None:
                 self._previous_positions[entity.track_id] = entity.position_transformed
 
-    def _handle_team_color_analysis(
-        self, frame: np.ndarray, frame_number: int, player_detections: List[Detection]
-    ) -> None:
-        """
-        Handle team color analysis and player assignment.
 
-        Two-phase process:
-        1. Initial Analysis: When enough players detected, analyze team colors once
-        2. Ongoing Assignment: Assign new players using established team colors
-        """
-        if not self._team_colors_analyzed:
-            self._perform_initial_team_color_analysis(
-                frame, frame_number, player_detections
-            )
-        else:
-            self._assign_new_players_to_established_teams(frame, player_detections)
 
     def _perform_initial_team_color_analysis(
         self, frame: np.ndarray, frame_number: int, player_detections: List[Detection]
@@ -665,7 +660,7 @@ class FootballAnalysisPipeline:
         if len(player_detections) < 4:
             return
 
-        print(
+        logger.info(
             f"Analyzing team colors with {len(player_detections)} players at frame {frame_number}"
         )
 
@@ -675,7 +670,7 @@ class FootballAnalysisPipeline:
         )
 
         if not team_features or len(team_features) < 2:
-            print("Failed to identify distinct team colors")
+            logger.warning("Failed to identify distinct team colors")
             return
 
         # Step 2: Set team features in the assigner
@@ -686,11 +681,11 @@ class FootballAnalysisPipeline:
 
         # Step 4: Mark analysis as complete and log results
         self._team_colors_analyzed = True
-        print(f"Team colors analyzed and assigned {len(assignments)} players")
+        logger.info(f"Team colors analyzed and assigned {len(assignments)} players")
 
         # Log assignment statistics
         stats = self.team_assigner.get_assignment_stats()
-        print(f"Assignment stats: {stats}")
+        logger.info(f"Assignment stats: {stats}")
 
     def _assign_new_players_to_established_teams(
         self, frame: np.ndarray, player_detections: List[Detection]
@@ -715,7 +710,7 @@ class FootballAnalysisPipeline:
                     new_players_assigned += 1
 
         if new_players_assigned > 0:
-            print(f"Assigned {new_players_assigned} new players to teams")
+            logger.info(f"Assigned {new_players_assigned} new players to teams")
 
     # ==================== ENTITY STATE CREATION METHODS ====================
 
@@ -755,7 +750,7 @@ class FootballAnalysisPipeline:
 
         with open(filepath, "wb") as f:
             pickle.dump(self.analysis_results, f)
-        print(f"Analysis results saved to: {filepath}")
+        logger.info(f"Analysis results saved to: {filepath}")
 
     def load_results(self, filepath: str):
         """Load analysis results from file."""
