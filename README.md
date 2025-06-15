@@ -166,6 +166,83 @@ The configuration is organized hierarchically:
 
 This makes the system highly configurable while maintaining type safety and validation.
 
+## Field Dimension Presets
+
+The system includes comprehensive support for different soccer field sizes through predefined dimension presets and flexible coordinate transformation.
+
+### Available Field Presets
+
+```python
+from football_ai.constants import FieldDimensions
+
+# List all available presets
+FieldDimensions.list_presets()
+
+# Get specific dimensions
+fifa_width, fifa_height = FieldDimensions.get_dimensions('FIFA_STANDARD')
+print(f"FIFA Standard: {fifa_width}m x {fifa_height}m")
+```
+
+**Available Presets:**
+- **FIFA_STANDARD** (68m x 105m) - Official FIFA standard for international matches
+- **FIFA_MINIMUM** (45m x 90m) - Minimum FIFA allowed dimensions
+- **FIFA_MAXIMUM** (90m x 120m) - Maximum FIFA allowed dimensions
+- **MLS** (70m x 110m) - Major League Soccer standard
+- **PREMIER_LEAGUE**, **LA_LIGA**, **BUNDESLIGA**, **SERIE_A** - Professional league standards
+- **YOUTH_U12** (45m x 64m), **YOUTH_U14** (55m x 75m), **YOUTH_U16** (64m x 91m) - Youth fields
+- **FIVE_A_SIDE** (25m x 42m), **SEVEN_A_SIDE** (50m x 70m) - Small-sided games
+- **HIGH_SCHOOL** (55m x 100m), **COLLEGE** (68m x 105m) - Educational institutions
+
+### Creating Coordinate Transformers with Field Presets
+
+```python
+from football_ai.transformation.coordinate_transformer import PerspectiveCoordinateTransformer
+
+# Method 1: Convenience class methods
+fifa_transformer = PerspectiveCoordinateTransformer.for_fifa_standard()
+youth_transformer = PerspectiveCoordinateTransformer.for_youth('U12')
+mls_transformer = PerspectiveCoordinateTransformer.for_league('mls')
+small_transformer = PerspectiveCoordinateTransformer.for_small_sided('5-a-side')
+
+# Method 2: Direct preset specification
+transformer = PerspectiveCoordinateTransformer(field_preset='BUNDESLIGA')
+
+# Method 3: Custom dimensions (overrides any preset)
+custom_transformer = PerspectiveCoordinateTransformer(
+    field_width=75.0, 
+    field_height=110.0
+)
+
+# All transformers work the same way regardless of field size
+transformer.set_field_corners(detected_corners)
+field_coord = transformer.transform_point(pixel_coord)
+distance = transformer.calculate_distance(point1, point2)
+```
+
+### Benefits of Field Size Support
+
+- **Accurate Measurements**: Distance and speed calculations automatically adjust to actual field size
+- **Flexible Analysis**: Support for youth soccer, professional leagues, and small-sided games
+- **Zone Detection**: Field zones (defensive, midfield, attacking) adapt to field dimensions
+- **Real-world Coordinates**: All measurements in actual meters for the specific field type
+
+### Usage in Pipeline
+
+The pipeline automatically uses FIFA standard dimensions by default, but you can customize:
+
+```python
+# For MLS matches
+pipeline = FootballAnalysisPipeline(config=config)
+pipeline.coordinate_transformer = PerspectiveCoordinateTransformer.for_league('mls')
+
+# For youth soccer
+pipeline.coordinate_transformer = PerspectiveCoordinateTransformer.for_youth('U14')
+
+# Then set field corners and process as normal
+pipeline.set_field_keypoints(detected_corners)
+results = pipeline.process_video(video_path, output_path)
+```
+
 ## Requirements
 
 - Python 3.8+
@@ -192,6 +269,7 @@ football_ai/                      # Football AI system
 ├── transformation/                # Coordinate transformation
 ├── rendering/                     # Video visualization
 ├── utils/                         # Utility functions
+├── constants.py                   # Field dimension presets and constants
 ├── config.py                      # Configuration system
 └── pipeline.py                    # Main orchestrator
 

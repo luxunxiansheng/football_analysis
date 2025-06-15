@@ -8,9 +8,10 @@ Includes field corner detection and management.
 
 import cv2
 import numpy as np
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Union
 
 from ..domain.interfaces import CoordinateTransformer, FieldKeypointDetector
+from ..constants import FieldDimensions
 
 
 class PerspectiveCoordinateTransformer(CoordinateTransformer):
@@ -23,8 +24,9 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
 
     def __init__(
         self,
-        field_width: float = 68.0,
-        field_height: float = 105.0,
+        field_width: Optional[float] = None,
+        field_height: Optional[float] = None,
+        field_preset: Optional[str] = None,
         field_corners: Optional[List[List[float]]] = None,
         auto_detector: Optional[FieldKeypointDetector] = None,
     ):
@@ -32,13 +34,43 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
         Initialize the coordinate transformer.
 
         Args:
-            field_width: Width of football field in meters
-            field_height: Height of football field in meters
+            field_width: Width of football field in meters (overrides preset)
+            field_height: Height of football field in meters (overrides preset)
+            field_preset: Predefined field dimensions (e.g., 'FIFA_STANDARD', 'YOUTH_U12')
+                         Available presets: FIFA_STANDARD, FIFA_MINIMUM, FIFA_MAXIMUM,
+                         PREMIER_LEAGUE, LA_LIGA, BUNDESLIGA, SERIE_A, MLS,
+                         YOUTH_U12, YOUTH_U14, YOUTH_U16, SEVEN_A_SIDE, FIVE_A_SIDE, etc.
             field_corners: Optional 4 field corner coordinates in pixels
             auto_detector: Optional detector for automatic field corner detection
         """
-        self.field_width = field_width
-        self.field_height = field_height
+        # Determine field dimensions
+        if field_width is not None and field_height is not None:
+            # Explicit dimensions provided
+            self.field_width = field_width
+            self.field_height = field_height
+            self.field_preset_used = None
+        elif field_preset is not None:
+            # Use preset dimensions
+            try:
+                self.field_width, self.field_height = FieldDimensions.get_dimensions(
+                    field_preset
+                )
+                self.field_preset_used = field_preset
+            except ValueError as e:
+                print(f"Warning: {e}")
+                print("Available presets:")
+                FieldDimensions.list_presets()
+                print("Falling back to FIFA standard dimensions.")
+                self.field_width, self.field_height = FieldDimensions.get_dimensions(
+                    "FIFA_STANDARD"
+                )
+                self.field_preset_used = "FIFA_STANDARD"
+        else:
+            # Default to FIFA standard
+            self.field_width, self.field_height = FieldDimensions.get_dimensions(
+                "FIFA_STANDARD"
+            )
+            self.field_preset_used = "FIFA_STANDARD"
 
         # Transformation matrices
         self.perspective_matrix: Optional[np.ndarray] = None
@@ -400,7 +432,8 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
             "is_calibrated": self.perspective_matrix is not None,
             "field_width": self.field_width,
             "field_height": self.field_height,
-            "pixel_vertices": self.pixel_vertices,
+            "field_preset_used": self.field_preset_used,
+            "field_corners": self._field_corners,
             "field_vertices": self.field_vertices,
         }
 
@@ -408,4 +441,108 @@ class PerspectiveCoordinateTransformer(CoordinateTransformer):
         """Reset the transformer state."""
         self.perspective_matrix = None
         self.inverse_perspective_matrix = None
-        self.pixel_vertices = None
+        self._field_corners = None
+
+    # Convenience class methods for common field types
+    @classmethod
+    def for_fifa_standard(
+        cls,
+        field_corners: Optional[List[List[float]]] = None,
+        auto_detector: Optional[FieldKeypointDetector] = None,
+    ) -> "PerspectiveCoordinateTransformer":
+        """Create transformer for FIFA standard field (68m x 105m)."""
+        return cls(
+            field_preset="FIFA_STANDARD",
+            field_corners=field_corners,
+            auto_detector=auto_detector,
+        )
+
+    @classmethod
+    def for_youth(
+        cls,
+        age_group: str,
+        field_corners: Optional[List[List[float]]] = None,
+        auto_detector: Optional[FieldKeypointDetector] = None,
+    ) -> "PerspectiveCoordinateTransformer":
+        """
+        Create transformer for youth field.
+
+        Args:
+            age_group: 'U12', 'U14', or 'U16'
+            field_corners: Optional field corner coordinates
+            auto_detector: Optional auto detector
+        """
+        preset_map = {"U12": "YOUTH_U12", "U14": "YOUTH_U14", "U16": "YOUTH_U16"}
+        if age_group not in preset_map:
+            raise ValueError(
+                f"Unknown age group '{age_group}'. Available: {list(preset_map.keys())}"
+            )
+
+        return cls(
+            field_preset=preset_map[age_group],
+            field_corners=field_corners,
+            auto_detector=auto_detector,
+        )
+
+    @classmethod
+    def for_league(
+        cls,
+        league: str,
+        field_corners: Optional[List[List[float]]] = None,
+        auto_detector: Optional[FieldKeypointDetector] = None,
+    ) -> "PerspectiveCoordinateTransformer":
+        """
+        Create transformer for specific league.
+
+        Args:
+            league: League name ('premier_league', 'la_liga', 'bundesliga', 'serie_a', 'mls', etc.)
+            field_corners: Optional field corner coordinates
+            auto_detector: Optional auto detector
+        """
+        league_map = {
+            "premier_league": "PREMIER_LEAGUE",
+            "la_liga": "LA_LIGA",
+            "bundesliga": "BUNDESLIGA",
+            "serie_a": "SERIE_A",
+            "mls": "MLS",
+            "uefa_champions": "UEFA_CHAMPIONS",
+        }
+
+        league_key = league.lower()
+        if league_key not in league_map:
+            raise ValueError(
+                f"Unknown league '{league}'. Available: {list(league_map.keys())}"
+            )
+
+        return cls(
+            field_preset=league_map[league_key],
+            field_corners=field_corners,
+            auto_detector=auto_detector,
+        )
+
+    @classmethod
+    def for_small_sided(
+        cls,
+        game_type: str,
+        field_corners: Optional[List[List[float]]] = None,
+        auto_detector: Optional[FieldKeypointDetector] = None,
+    ) -> "PerspectiveCoordinateTransformer":
+        """
+        Create transformer for small-sided games.
+
+        Args:
+            game_type: '5-a-side' or '7-a-side'
+            field_corners: Optional field corner coordinates
+            auto_detector: Optional auto detector
+        """
+        game_map = {"5-a-side": "FIVE_A_SIDE", "7-a-side": "SEVEN_A_SIDE"}
+        if game_type not in game_map:
+            raise ValueError(
+                f"Unknown game type '{game_type}'. Available: {list(game_map.keys())}"
+            )
+
+        return cls(
+            field_preset=game_map[game_type],
+            field_corners=field_corners,
+            auto_detector=auto_detector,
+        )
