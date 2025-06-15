@@ -93,25 +93,27 @@ class KMeansTeamColorAnalyzer(TeamFeatureAnalyzer):
                 )
                 return None
 
-            # Create team colors
-            team_colors = {}
+            # Create team features with color information
+            team_features = {}
             for team_id in range(2):
                 team_color_bgr = best_kmeans.cluster_centers_[team_id].astype(int)
-                team_colors[team_id] = TeamColor(
-                    id=team_id,
-                    primary_color=tuple(team_color_bgr),
-                    name=f"Team_{team_id}",
-                )
 
-            self.team_colors = team_colors
+                # Create TeamFeatures object with color as a feature
+                team_feature = TeamFeatures(
+                    team_id=team_id, name=f"Team_{team_id}", confidence=1.0
+                )
+                team_feature.add_feature("color", tuple(team_color_bgr), 1.0)
+                team_features[team_id] = team_feature
+
+            self.team_features = team_features
 
             # Print debug info about team colors detected
             print(f"Team colors detected:")
-            print(f"  Team 0: BGR{team_colors[0].primary_color}")
-            print(f"  Team 1: BGR{team_colors[1].primary_color}")
+            print(f"  Team 0: BGR{team_features[0].get_feature('color')}")
+            print(f"  Team 1: BGR{team_features[1].get_feature('color')}")
             print(f"  Separation distance: {team_separation:.1f}")
 
-            return team_colors
+            return team_features
 
         except Exception as e:
             print(f"Team color analysis failed: {e}")

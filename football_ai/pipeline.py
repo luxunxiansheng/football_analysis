@@ -16,6 +16,7 @@ from .domain.models import (
     FieldEntityType,
     ObjectType,
     TeamAssignment,
+    TeamColor,
     MatchAnalysis,
 )
 from .detection.yolo_detector import YOLODetector
@@ -389,7 +390,7 @@ class FootballAnalysisPipeline:
             "camera_movement": camera_movement,
             "possession_info": possession_info,
             "team_colors": (
-                self.team_assigner._team_features
+                self._convert_team_features_to_colors(self.team_assigner._team_features)
                 if self.team_assigner.has_team_features()
                 else None
             ),
@@ -829,3 +830,28 @@ class FootballAnalysisPipeline:
                 )
             )
         return referee_entities
+
+    def _convert_team_features_to_colors(
+        self, team_features: Optional[Dict[int, Any]]
+    ) -> Optional[Dict[int, TeamColor]]:
+        """
+        Convert TeamFeatures objects to TeamColor objects for renderer compatibility.
+
+        Args:
+            team_features: Dictionary of team features from the team assigner
+
+        Returns:
+            Dictionary of TeamColor objects for the renderer, or None if no features
+        """
+        if not team_features:
+            return None
+
+        team_colors = {}
+        for team_id, features in team_features.items():
+            if hasattr(features, "get_feature") and features.get_feature("color"):
+                color = features.get_feature("color")
+                team_colors[team_id] = TeamColor(
+                    id=team_id, primary_color=color, name=f"Team_{team_id}"
+                )
+
+        return team_colors if team_colors else None
