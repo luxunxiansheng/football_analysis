@@ -364,16 +364,47 @@ class FootballAnalysisPipeline:
         # Group detections by type
         detection_groups = self._group_detections_by_type(tracked_detections)
 
-        # Team color analysis and player assignment
+        # Team color analysis and player assignment (consolidated logic)
         field_players = detection_groups["player"] + detection_groups["goalkeeper"]
-      
+        
         if not self._team_colors_analyzed:
-            self._perform_initial_team_color_analysis(
-                frame, frame_number, field_players
-            )
+            # Initial team color analysis and batch assignment
+            if len(field_players) >= 4:
+                logger.info(
+                    f"Analyzing team colors with {len(field_players)} players at frame {frame_number}"
+                )
+                team_features = self.team_analyzer.analyze_team_features(
+                    frame, field_players
+                )
+                if team_features and len(team_features) >= 2:
+                    self.team_assigner.set_team_features(team_features)
+                    assignments = self.team_assigner.assign_players_batch(
+                        frame, field_players
+                    )
+                    self._team_colors_analyzed = True
+                    logger.info(
+                        f"Team colors analyzed and assigned {len(assignments)} players"
+                    )
+                    stats = self.team_assigner.get_assignment_stats()
+                    logger.info(f"Assignment stats: {stats}")
+                else:
+                    logger.warning("Failed to identify distinct team colors")
         else:
-            self._assign_new_players_to_established_teams(frame, field_players)
-
+            # Assign new players to established teams
+            new_players_assigned = 0
+            for detection in field_players:
+                if (
+                    detection.track_id is not None
+                    and self.team_assigner.get_player_team_assignment(
+                        detection.track_id
+                    )
+                    is None
+                ):
+                    assignment = self.team_assigner.assign_player_team(frame, detection)
+                    if assignment is not None:
+                        new_players_assigned += 1
+            if new_players_assigned > 0:
+                logger.info(f"Assigned {new_players_assigned} new players to teams")
 
         # Create entity states with position calculations
         player_entities = self._create_player_states(
@@ -528,8 +559,6 @@ class FootballAnalysisPipeline:
         # Generate possession statistics
         return self.possession_analyzer.get_possession_stats(frame_player_states)
 
-  
-
     # ==================== OBJECT DETECTION AND TRACKING METHODS ====================
 
     def _group_detections_by_type(
@@ -641,76 +670,6 @@ class FootballAnalysisPipeline:
         for entity in field_entities:
             if entity.track_id is not None and entity.position_transformed is not None:
                 self._previous_positions[entity.track_id] = entity.position_transformed
-
-
-
-    def _perform_initial_team_color_analysis(
-        self, frame: np.ndarray, frame_number: int, player_detections: List[Detection]
-    ) -> None:
-        """
-        Perform one-time team color analysis when enough players are detected.
-
-        Steps:
-        1. Check if we have minimum required players
-        2. Analyze team colors using clustering
-        3. Assign all current players to teams
-        4. Cache results for future use
-        """
-        # Require minimum players for reliable analysis
-        if len(player_detections) < 4:
-            return
-
-        logger.info(
-            f"Analyzing team colors with {len(player_detections)} players at frame {frame_number}"
-        )
-
-        # Step 1: Analyze team features using color clustering
-        team_features = self.team_analyzer.analyze_team_features(
-            frame, player_detections
-        )
-
-        if not team_features or len(team_features) < 2:
-            logger.warning("Failed to identify distinct team colors")
-            return
-
-        # Step 2: Set team features in the assigner
-        self.team_assigner.set_team_features(team_features)
-
-        # Step 3: Assign all current players to teams using batch processing
-        assignments = self.team_assigner.assign_players_batch(frame, player_detections)
-
-        # Step 4: Mark analysis as complete and log results
-        self._team_colors_analyzed = True
-        logger.info(f"Team colors analyzed and assigned {len(assignments)} players")
-
-        # Log assignment statistics
-        stats = self.team_assigner.get_assignment_stats()
-        logger.info(f"Assignment stats: {stats}")
-
-    def _assign_new_players_to_established_teams(
-        self, frame: np.ndarray, player_detections: List[Detection]
-    ) -> None:
-        """
-        Assign newly detected players to established teams.
-
-        For players that weren't in the initial analysis, assign them
-        individually using the previously established team colors.
-        """
-        new_players_assigned = 0
-
-        for detection in player_detections:
-            if (
-                detection.track_id is not None
-                and self.team_assigner.get_player_team_assignment(detection.track_id)
-                is None
-            ):
-                # Assign team for new player using established team colors
-                assignment = self.team_assigner.assign_player_team(frame, detection)
-                if assignment is not None:
-                    new_players_assigned += 1
-
-        if new_players_assigned > 0:
-            logger.info(f"Assigned {new_players_assigned} new players to teams")
 
     # ==================== ENTITY STATE CREATION METHODS ====================
 
