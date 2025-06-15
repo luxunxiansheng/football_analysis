@@ -5,7 +5,7 @@ This module defines clean domain models and interfaces for football video analys
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
@@ -220,3 +220,56 @@ class PlayerKeypoints:
         x = sum(kp[0] for kp in visible) / len(visible)
         y = sum(kp[1] for kp in visible) / len(visible)
         return (x, y)
+
+
+@dataclass
+class TeamFeatures:
+    """
+    Represents comprehensive team features for identification.
+    Flexible container for any type of team distinguishing characteristics.
+    """
+
+    team_id: int
+    name: str
+    features: Dict[str, Any] = field(default_factory=dict)
+    confidence: float = 1.0
+
+    def add_feature(
+        self, feature_name: str, feature_value: Any, confidence: float = 1.0
+    ) -> None:
+        """Add a feature to the team's feature set."""
+        self.features[feature_name] = {
+            "value": feature_value,
+            "confidence": confidence,
+        }
+
+    def get_feature(self, feature_name: str) -> Optional[Any]:
+        """Get a specific feature value."""
+        feature_data = self.features.get(feature_name)
+        return feature_data["value"] if feature_data else None
+
+    def get_feature_confidence(self, feature_name: str) -> Optional[float]:
+        """Get confidence score for a specific feature."""
+        feature_data = self.features.get(feature_name)
+        return feature_data["confidence"] if feature_data else None
+
+    def has_feature(self, feature_name: str) -> bool:
+        """Check if team has a specific feature."""
+        return feature_name in self.features
+
+    def get_all_features(self) -> Dict[str, Any]:
+        """Get all feature values."""
+        return {name: data["value"] for name, data in self.features.items()}
+
+    def merge_features(self, other_features: "TeamFeatures") -> None:
+        """Merge features from another TeamFeatures object."""
+        for feature_name, feature_data in other_features.features.items():
+            if feature_name not in self.features:
+                self.features[feature_name] = feature_data
+            else:
+                # Keep feature with higher confidence
+                if (
+                    feature_data["confidence"]
+                    > self.features[feature_name]["confidence"]
+                ):
+                    self.features[feature_name] = feature_data

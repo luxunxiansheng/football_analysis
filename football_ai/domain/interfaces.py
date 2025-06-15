@@ -6,7 +6,15 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 
-from .models import Detection, FieldEntityState, BoundingBox, TeamColor, PlayerKeypoints
+from .models import (
+    Detection,
+    FieldEntityState,
+    BoundingBox,
+    TeamColor,
+    PlayerKeypoints,
+    TeamAssignment,
+    TeamFeatures,
+)
 
 
 class ObjectDetector(ABC):
@@ -43,21 +51,24 @@ class ObjectTracker(ABC):
         pass
 
 
-class TeamColorAnalyzer(ABC):
-    """Interface for analyzing team colors and assigning players to teams."""
+class TeamFeatureAnalyzer(ABC):
+    """Interface for analyzing team distinguishing features in video frames."""
 
     @abstractmethod
-    def analyze_frame_colors(
+    def analyze_team_features(
         self, frame: np.ndarray, detections: List[Detection]
-    ) -> Dict[int, TeamColor]:
-        """Analyze team colors from player detections in a frame."""
-        pass
+    ) -> Optional[Dict[int, TeamFeatures]]:
+        """
+        Analyze team distinguishing features from player detections in a frame.
 
-    @abstractmethod
-    def assign_player_team(
-        self, frame: np.ndarray, detection: Detection
-    ) -> Optional[int]:
-        """Assign a player to a team based on their jersey color."""
+        Args:
+            frame: Video frame
+            detections: List of player detections
+
+        Returns:
+            Dictionary mapping team IDs to TeamFeatures objects containing
+            various distinguishing characteristics (colors, patterns, logos, etc.)
+        """
         pass
 
 
@@ -156,4 +167,30 @@ class FieldKeypointDetector(ABC):
         Returns:
             True if ready, False otherwise
         """
+        pass
+
+
+class TeamAssigner(ABC):
+    """Interface for assigning players to teams based on established team features."""
+
+    @abstractmethod
+    def set_team_features(self, team_features: Dict[int, TeamFeatures]) -> None:
+        """Set the established team features for assignment."""
+        pass
+
+    @abstractmethod
+    def assign_player_team(
+        self, frame: np.ndarray, detection: Detection
+    ) -> Optional[TeamAssignment]:
+        """Assign a player to a team based on their distinguishing features."""
+        pass
+
+    @abstractmethod
+    def get_player_team_assignment(self, track_id: int) -> Optional[TeamAssignment]:
+        """Get cached team assignment for a player by track ID."""
+        pass
+
+    @abstractmethod
+    def has_team_features(self) -> bool:
+        """Check if team features have been established."""
         pass

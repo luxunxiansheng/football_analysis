@@ -22,6 +22,7 @@ from .detection.yolo_detector import YOLODetector
 from .detection.yolo_keypoint_detector import YOLOKeypointDetector
 from .tracking.byte_tracker import ByteTracker
 from .analysis.team_color_analyzer import KMeansTeamColorAnalyzer
+from .assignment.team_assigner import TeamAssigner
 from .analysis.ball_possession_analyzer import DistanceBasedBallPossessionAnalyzer
 from .motion.camera_motion_tracker import OpticalFlowCameraTracker
 from .transformation.coordinate_transformer import PerspectiveCoordinateTransformer
@@ -84,6 +85,7 @@ class FootballAnalysisPipeline:
 
         self.tracker = ByteTracker()
         self.team_analyzer = KMeansTeamColorAnalyzer()
+        self.team_assigner = TeamAssigner()
         self.possession_analyzer = DistanceBasedBallPossessionAnalyzer()
         self.camera_tracker = OpticalFlowCameraTracker()
         self.coordinate_transformer = PerspectiveCoordinateTransformer(
@@ -94,9 +96,6 @@ class FootballAnalysisPipeline:
         # State
         self.analysis_results: Optional[MatchAnalysis] = None
         self.is_initialized = False
-        self._team_assignments_by_track_id: Dict[int, TeamAssignment] = (
-            {}
-        )  # Cache team assignments by track_id
         self._team_colors_analyzed = (
             False  # Track if we've done initial team color analysis
         )
@@ -109,40 +108,250 @@ class FootballAnalysisPipeline:
     def process_video(
         self, video_path: str, output_video_path: Optional[str] = None
     ) -> MatchAnalysis:
-        """Process a football video and generate complete analysis."""
+        """
+        Process a football video and generate complete analysis.
+
+        Main pipeline steps:
+        - Check for cached results
+        - Setup video processing environment
+        - Process each frame sequentially
+        - Generate final analysis results
+        - Save results and cache
+        """
         print(f"Starting analysis of video: {video_path}")
 
-        # Try to load cached results first
-        cached_results = self._try_load_cache()
+        # Check for cached results first
+        cached_results = self._check_cache()
         if cached_results:
             return cached_results
 
-        # Setup and process
-        video_props = self._setup_video_processing(video_path)
-        tracking_data = self._initialize_tracking_data()
-        video_writer = self._setup_video_writer(output_video_path, video_props)
+        # Setup video processing environment
+        video_props, tracking_data, video_writer = self._setup_processing(
+            video_path, output_video_path
+        )
 
+        # Process each frame sequentially
         frame_count = self._process_all_frames(
             video_path, video_props, video_writer, tracking_data
         )
 
-        # Generate results
-        self.analysis_results = self._create_analysis_results(
-            tracking_data["field_entity_tracks"],
-            tracking_data["ball_tracks"],
-            tracking_data["camera_movements"],
-            tracking_data["possession_history"],
-            video_props,
-        )
+        # Generate final analysis results
+        self.analysis_results = self._generate_final_results(tracking_data, video_props)
 
-        self._save_cache_if_enabled()
+        # Save results and cache
+        self._save_results()
+
         print("Video analysis completed successfully")
         return self.analysis_results
 
-    def _process_frame(
+    # ==================== MAIN PIPELINE STEPS ====================
+
+    def _check_cache(self) -> Optional[MatchAnalysis]:
+        """
+        Check for cached analysis results.
+
+        Returns cached results if available and caching is enabled,
+        otherwise returns None to proceed with fresh analysis.
+        """
+        cache_path = os.path.join(
+            self.config.processing.output_directory, "analysis_cache.pkl"
+        )
+        if not (self.config.processing.load_from_cache and os.path.exists(cache_path)):
+            return None
+
+        print("Loading cached analysis results...")
+        try:
+            with open(cache_path, "rb") as f:
+                cached_results = pickle.load(f)
+            self.analysis_results = cached_results
+            print("Cached results loaded successfully")
+            return cached_results
+        except Exception as e:
+            print(f"Failed to load cache: {e}")
+            return None
+
+    def _setup_processing(
+        self, video_path: str, output_video_path: Optional[str]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[VideoWriter]]:
+        """
+        Setup video processing environment.
+
+        Initializes video properties, tracking data structures, and output writer.
+        Prepares the pipeline for frame-by-frame processing.
+        """
+        print("Setting up video processing environment...")
+
+        # Get video properties
+        video_props = get_video_properties(video_path)
+        print(f"Video properties: {video_props}")
+
+        # Setup field keypoints
+        keypoints = self.coordinate_transformer.get_field_corners()
+        if keypoints:
+            print("Using configured field keypoints")
+        else:
+            print("No field keypoints configured")
+
+        # Initialize tracking data structures
+        self._previous_positions: Dict[int, Tuple[float, float]] = {}
+        self._team_assignments_by_track_id = {}
+        self._team_colors_analyzed = False
+
+        tracking_data = {
+            "field_entity_tracks": {},
+            "ball_tracks": [],
+            "camera_movements": [],
+            "possession_history": [],
+        }
+
+        # Setup video writer for output
+        video_writer = None
+        if output_video_path:
+            video_writer = VideoWriter(
+                output_video_path,
+                fps=video_props["fps"],
+                frame_size=(video_props["width"], video_props["height"]),
+            )
+            print(f"Output video will be saved to: {output_video_path}")
+
+        return video_props, tracking_data, video_writer
+
+    def _process_all_frames(
+        self,
+        video_path: str,
+        video_props: Dict[str, Any],
+        video_writer: Optional[VideoWriter],
+        tracking_data: Dict[str, Any],
+    ) -> int:
+        """
+        Process each video frame sequentially.
+
+        Main processing loop that handles:
+        - Object detection and tracking
+        - Team color analysis (one-time)
+        - Player team assignment
+        - Position calculations
+        - Ball possession analysis
+        - Frame rendering (optional)
+        """
+        print("Starting frame-by-frame processing...")
+        frame_count = 0
+
+        try:
+            with video_writer if video_writer else contextlib.nullcontext():
+                for frame in tqdm(
+                    read_video_frames(video_path),
+                    total=video_props["frame_count"],
+                    desc="Processing frames",
+                ):
+                    # Process single frame through complete pipeline
+                    frame_results = self._process_single_frame(
+                        frame, frame_count, video_props["fps"]
+                    )
+
+                    # Store frame results in tracking data
+                    self._store_frame_results_in_tracking_data(
+                        frame_results, frame_count, tracking_data
+                    )
+
+                    # Render annotated frame if output requested
+                    if video_writer:
+                        annotated_frame = self._render_annotated_frame(
+                            frame, frame_results
+                        )
+                        video_writer.write_frame(annotated_frame)
+
+                    frame_count += 1
+
+        except Exception as e:
+            print(f"Error during video processing: {e}")
+            raise
+
+        print(f"Processed {frame_count} frames successfully")
+        return frame_count
+
+    def _generate_final_results(
+        self, tracking_data: Dict[str, Any], video_props: Dict[str, Any]
+    ) -> MatchAnalysis:
+        """
+        Generate final analysis results.
+
+        Compiles all frame-by-frame data into comprehensive match analysis,
+        including possession statistics and movement analytics.
+        """
+        print("Generating final analysis results...")
+
+        # Extract components from tracking data
+        field_entity_tracks = tracking_data["field_entity_tracks"]
+        ball_tracks = tracking_data["ball_tracks"]
+        camera_movements = tracking_data["camera_movements"]
+        possession_history = tracking_data["possession_history"]
+
+        # Calculate team possession statistics
+        team_possession_stats = self._calculate_team_possession_statistics(
+            field_entity_tracks
+        )
+
+        # Create team ball control array
+        team_ball_control = np.array(
+            [
+                team_possession_stats.get("team_1_possession", 0),
+                team_possession_stats.get("team_2_possession", 0),
+            ]
+        )
+
+        # Generate comprehensive match analysis
+        analysis = MatchAnalysis(
+            field_entity_tracks=field_entity_tracks,
+            ball_tracks=ball_tracks,
+            team_ball_control=team_ball_control,
+            camera_movement=camera_movements,
+            total_frames=len(camera_movements),
+            fps=video_props["fps"],
+        )
+
+        print(
+            f"Analysis complete: {len(field_entity_tracks)} entity tracks, "
+            f"{len(ball_tracks)} ball tracks, {analysis.total_frames} frames"
+        )
+
+        return analysis
+
+    def _save_results(self) -> None:
+        """
+        Save analysis results and cache.
+
+        Saves the complete analysis to cache file if caching is enabled.
+        """
+        if not self.config.processing.save_to_cache:
+            print("Caching disabled, skipping cache save")
+            return
+
+        try:
+            cache_path = os.path.join(
+                self.config.processing.output_directory, "analysis_cache.pkl"
+            )
+            with open(cache_path, "wb") as f:
+                pickle.dump(self.analysis_results, f)
+            print(f"Analysis results cached successfully to: {cache_path}")
+        except Exception as e:
+            print(f"Failed to save cache: {e}")
+
+    # ==================== FRAME PROCESSING METHODS ====================
+
+    def _process_single_frame(
         self, frame: np.ndarray, frame_number: int, fps: float
     ) -> Dict[str, Any]:
-        """Process a single frame and return all analysis results."""
+        """
+        Process a single frame through the complete analysis pipeline.
+
+        Steps:
+        - Detect and track objects
+        - Analyze team colors (one-time setup)
+        - Assign players to teams
+        - Calculate positions and movement
+        - Analyze ball possession
+        """
         # Core detection and tracking
         detections = self.detector.detect(frame)
         tracked_detections = self.tracker.update(detections)
@@ -151,11 +360,11 @@ class FootballAnalysisPipeline:
         # Group detections by type
         detection_groups = self._group_detections_by_type(tracked_detections)
 
-        # Get all field players (players + goalkeepers) for team color analysis
+        # Team color analysis and player assignment
         field_players = detection_groups["player"] + detection_groups["goalkeeper"]
         self._handle_team_color_analysis(frame, frame_number, field_players)
 
-        # Create field entity states for all entities
+        # Create entity states with position calculations
         player_entities = self._create_player_states(
             field_players, frame, frame_number, fps
         )
@@ -163,24 +372,154 @@ class FootballAnalysisPipeline:
             detection_groups["referee"], frame, frame_number, fps
         )
 
-        # Combine all field entities and update position tracking
+        # Update position tracking for movement calculations
         all_field_entities = player_entities + referee_entities
         self._update_position_tracking(all_field_entities)
 
-        # Analyze ball possession with player entities only (referees don't play with ball)
+        # Analyze ball possession
         possession_info = self.possession_analyzer.analyze_possession(
             detection_groups["ball"], player_entities
         )
 
         return {
             "frame_number": frame_number,
-            "field_entities": all_field_entities,  # All field entities (players, goalkeepers, referees)
-            "player_entities": player_entities,  # For backward compatibility
+            "field_entities": all_field_entities,
+            "player_entities": player_entities,
             "ball_detections": detection_groups["ball"],
             "camera_movement": camera_movement,
             "possession_info": possession_info,
-            "team_colors": self.team_analyzer.get_team_colors(),
+            "team_colors": (
+                self.team_assigner._team_features
+                if self.team_assigner.has_team_features()
+                else None
+            ),
         }
+
+    def _store_frame_results_in_tracking_data(
+        self,
+        frame_results: Dict[str, Any],
+        frame_number: int,
+        tracking_data: Dict[str, Any],
+    ) -> None:
+        """
+        Store frame processing results in tracking data structures.
+
+        Organizes results by entity tracks, ball tracks, camera movement,
+        and possession history for final analysis generation.
+        """
+        # Store field entity tracks
+        self._store_field_entity_tracks(
+            frame_results["field_entities"], tracking_data["field_entity_tracks"]
+        )
+
+        # Store ball tracking data
+        self._store_ball_tracks(
+            frame_results["ball_detections"], tracking_data["ball_tracks"], frame_number
+        )
+
+        # Store camera movement and possession data
+        tracking_data["camera_movements"].append(frame_results["camera_movement"])
+        tracking_data["possession_history"].append(frame_results["possession_info"])
+
+    def _store_field_entity_tracks(
+        self,
+        field_entities: List[FieldEntityState],
+        field_entity_tracks: Dict[int, List[FieldEntityState]],
+    ) -> None:
+        """Store field entity tracking data for all entities (players, goalkeepers, referees)."""
+        for entity in field_entities:
+            if entity.track_id not in field_entity_tracks:
+                field_entity_tracks[entity.track_id] = []
+            field_entity_tracks[entity.track_id].append(entity)
+
+    def _store_ball_tracks(
+        self,
+        ball_detections: List[Detection],
+        ball_tracks: List[Dict[int, Dict[str, Any]]],
+        frame_number: int,
+    ) -> None:
+        """Store ball tracking data."""
+        ball_frame_data = {}
+        for ball in ball_detections:
+            if ball.track_id is not None:
+                ball_frame_data[ball.track_id] = {
+                    "bbox": ball.bbox.as_list(),
+                    "confidence": ball.confidence,
+                }
+        if ball_frame_data:
+            ball_tracks.append({frame_number: ball_frame_data})
+
+    def _render_annotated_frame(
+        self, frame: np.ndarray, frame_results: Dict[str, Any]
+    ) -> np.ndarray:
+        """
+        Render frame with all analysis annotations.
+
+        Creates visual output showing:
+        - Player bounding boxes with team colors
+        - Ball tracking and possession indicators
+        - Movement trails and statistics
+        """
+        # Convert field entities back to referee detections for renderer compatibility
+        referee_detections = []
+        for entity in frame_results["field_entities"]:
+            if entity.is_referee:
+                referee_detections.append(
+                    Detection(
+                        bbox=entity.bbox,
+                        object_type=ObjectType.REFEREE,
+                        track_id=entity.track_id,
+                        confidence=1.0,
+                    )
+                )
+
+        return self.renderer.render_frame(
+            frame=frame,
+            player_states=frame_results["player_entities"],
+            ball_detections=frame_results["ball_detections"],
+            referee_detections=referee_detections,
+            team_colors=frame_results["team_colors"],
+            possession_info=frame_results["possession_info"],
+            camera_movement=frame_results["camera_movement"],
+        )
+
+    def _calculate_team_possession_statistics(
+        self, field_entity_tracks: Dict[int, List[FieldEntityState]]
+    ) -> Dict[str, float]:
+        """
+        Calculate team possession statistics from field entity tracks.
+
+        Analyzes player movement and ball possession data to generate
+        comprehensive team control percentages.
+        """
+        # Extract player tracks only (no referees for possession analysis)
+        player_tracks = {}
+        for track_id, entity_track in field_entity_tracks.items():
+            player_entities = [entity for entity in entity_track if entity.is_player]
+            if player_entities:
+                player_tracks[track_id] = player_entities
+
+        # Create frame-by-frame player states for possession analysis
+        max_frames = (
+            max(len(states) for states in player_tracks.values())
+            if player_tracks
+            else 0
+        )
+
+        frame_player_states = []
+        for frame_idx in range(max_frames):
+            frame_players = []
+            for track_id, states in player_tracks.items():
+                if frame_idx < len(states):
+                    frame_players.append(states[frame_idx])
+            frame_player_states.append(frame_players)
+
+        # Generate possession statistics
+        return self.possession_analyzer.get_possession_stats(frame_player_states)
+
+    # ==================== TEAM ANALYSIS METHODS ====================
+
+    # ==================== OBJECT DETECTION AND TRACKING METHODS ====================
 
     def _group_detections_by_type(
         self, tracked_detections: List[Detection]
@@ -269,27 +608,22 @@ class FootballAnalysisPipeline:
     def _assign_player_team(
         self, frame: np.ndarray, detection: Detection
     ) -> TeamAssignment:
-        """Assign team to player using cached assignments or analyzer fallback."""
-        if (
-            detection.track_id is not None
-            and detection.track_id in self._team_assignments_by_track_id
-        ):
-            # Use cached assignment - much faster!
-            return self._team_assignments_by_track_id[detection.track_id]
-
-        # Fallback to analyzer if not in cache (shouldn't happen often after initial analysis)
-        team_id = self.team_analyzer.assign_player_team(frame, detection)
-        team_assignment = (
-            TeamAssignment.TEAM_1
-            if team_id == 0
-            else TeamAssignment.TEAM_2 if team_id == 1 else TeamAssignment.UNKNOWN
-        )
-
-        # Cache the result for future frames
+        """Assign team to player using team assigner."""
         if detection.track_id is not None:
-            self._team_assignments_by_track_id[detection.track_id] = team_assignment
+            # Get assignment from team assigner
+            assignment = self.team_assigner.get_player_team_assignment(
+                detection.track_id
+            )
+            if assignment is not None:
+                return assignment
 
-        return team_assignment
+            # If not assigned yet, try to assign now
+            assignment = self.team_assigner.assign_player_team(frame, detection)
+            if assignment is not None:
+                return assignment
+
+        # Fallback to unknown if assignment fails
+        return TeamAssignment.UNKNOWN
 
     def _update_position_tracking(self, field_entities: List[FieldEntityState]) -> None:
         """Update position tracking for next frame's speed calculation."""
@@ -300,60 +634,89 @@ class FootballAnalysisPipeline:
     def _handle_team_color_analysis(
         self, frame: np.ndarray, frame_number: int, player_detections: List[Detection]
     ) -> None:
-        """Handle team color analysis - analyze once and cache by track ID."""
-        # Only analyze if we haven't done it yet and have enough players
-        if not self._team_colors_analyzed and len(player_detections) >= 4:
-            # Analyze team colors once
-            team_colors = self.team_analyzer.analyze_frame_colors(
-                frame, player_detections
+        """
+        Handle team color analysis and player assignment.
+
+        Two-phase process:
+        1. Initial Analysis: When enough players detected, analyze team colors once
+        2. Ongoing Assignment: Assign new players using established team colors
+        """
+        if not self._team_colors_analyzed:
+            self._perform_initial_team_color_analysis(
+                frame, frame_number, player_detections
             )
+        else:
+            self._assign_new_players_to_established_teams(frame, player_detections)
 
-            if team_colors and len(team_colors) >= 2:
-                # Cache team assignments for all current players
-                for detection in player_detections:
-                    if detection.track_id is not None:
-                        team_id = self.team_analyzer.assign_player_team(
-                            frame, detection
-                        )
-                        if team_id == 0:
-                            self._team_assignments_by_track_id[detection.track_id] = (
-                                TeamAssignment.TEAM_1
-                            )
-                        elif team_id == 1:
-                            self._team_assignments_by_track_id[detection.track_id] = (
-                                TeamAssignment.TEAM_2
-                            )
-                        else:
-                            self._team_assignments_by_track_id[detection.track_id] = (
-                                TeamAssignment.UNKNOWN
-                            )
+    def _perform_initial_team_color_analysis(
+        self, frame: np.ndarray, frame_number: int, player_detections: List[Detection]
+    ) -> None:
+        """
+        Perform one-time team color analysis when enough players are detected.
 
-                self._team_colors_analyzed = True
-                print(
-                    f"Team colors analyzed and cached for {len(self._team_assignments_by_track_id)} players at frame {frame_number}"
-                )
+        Steps:
+        1. Check if we have minimum required players
+        2. Analyze team colors using clustering
+        3. Assign all current players to teams
+        4. Cache results for future use
+        """
+        # Require minimum players for reliable analysis
+        if len(player_detections) < 4:
+            return
 
-        # Handle new players that weren't in the initial analysis
-        elif self._team_colors_analyzed:
-            for detection in player_detections:
-                if (
-                    detection.track_id is not None
-                    and detection.track_id not in self._team_assignments_by_track_id
-                ):
-                    # Assign team for new player using already analyzed team colors
-                    team_id = self.team_analyzer.assign_player_team(frame, detection)
-                    if team_id == 0:
-                        self._team_assignments_by_track_id[detection.track_id] = (
-                            TeamAssignment.TEAM_1
-                        )
-                    elif team_id == 1:
-                        self._team_assignments_by_track_id[detection.track_id] = (
-                            TeamAssignment.TEAM_2
-                        )
-                    else:
-                        self._team_assignments_by_track_id[detection.track_id] = (
-                            TeamAssignment.UNKNOWN
-                        )
+        print(
+            f"Analyzing team colors with {len(player_detections)} players at frame {frame_number}"
+        )
+
+        # Step 1: Analyze team features using color clustering
+        team_features = self.team_analyzer.analyze_team_features(
+            frame, player_detections
+        )
+
+        if not team_features or len(team_features) < 2:
+            print("Failed to identify distinct team colors")
+            return
+
+        # Step 2: Set team features in the assigner
+        self.team_assigner.set_team_features(team_features)
+
+        # Step 3: Assign all current players to teams using batch processing
+        assignments = self.team_assigner.assign_players_batch(frame, player_detections)
+
+        # Step 4: Mark analysis as complete and log results
+        self._team_colors_analyzed = True
+        print(f"Team colors analyzed and assigned {len(assignments)} players")
+
+        # Log assignment statistics
+        stats = self.team_assigner.get_assignment_stats()
+        print(f"Assignment stats: {stats}")
+
+    def _assign_new_players_to_established_teams(
+        self, frame: np.ndarray, player_detections: List[Detection]
+    ) -> None:
+        """
+        Assign newly detected players to established teams.
+
+        For players that weren't in the initial analysis, assign them
+        individually using the previously established team colors.
+        """
+        new_players_assigned = 0
+
+        for detection in player_detections:
+            if (
+                detection.track_id is not None
+                and self.team_assigner.get_player_team_assignment(detection.track_id)
+                is None
+            ):
+                # Assign team for new player using established team colors
+                assignment = self.team_assigner.assign_player_team(frame, detection)
+                if assignment is not None:
+                    new_players_assigned += 1
+
+        if new_players_assigned > 0:
+            print(f"Assigned {new_players_assigned} new players to teams")
+
+    # ==================== ENTITY STATE CREATION METHODS ====================
 
     def _store_frame_results(
         self,
@@ -374,115 +737,7 @@ class FootballAnalysisPipeline:
         camera_movements.append(frame_results["camera_movement"])
         possession_history.append(frame_results["possession_info"])
 
-    def _store_field_entity_tracks(
-        self,
-        field_entities: List[FieldEntityState],
-        field_entity_tracks: Dict[int, List[FieldEntityState]],
-    ):
-        """Store field entity tracking data for all entities (players, goalkeepers, referees)."""
-        for entity in field_entities:
-            if entity.track_id not in field_entity_tracks:
-                field_entity_tracks[entity.track_id] = []
-            field_entity_tracks[entity.track_id].append(entity)
-
-    def _store_ball_tracks(
-        self,
-        ball_detections: List[Detection],
-        ball_tracks: List[Dict[int, Dict[str, Any]]],
-        frame_number: int,
-    ):
-        """Store ball tracking data."""
-        ball_frame_data = {}
-        for ball in ball_detections:
-            if ball.track_id is not None:
-                ball_frame_data[ball.track_id] = {
-                    "bbox": ball.bbox.as_list(),
-                    "confidence": ball.confidence,
-                }
-        if ball_frame_data:
-            ball_tracks.append({frame_number: ball_frame_data})
-
-    def _render_frame(
-        self, frame: np.ndarray, frame_results: Dict[str, Any]
-    ) -> np.ndarray:
-        """Render frame with all annotations."""
-        # Create legacy referee detections for renderer compatibility
-        referee_detections = []
-        for entity in frame_results["field_entities"]:
-            if entity.is_referee:
-                referee_detections.append(
-                    Detection(
-                        bbox=entity.bbox,
-                        object_type=ObjectType.REFEREE,
-                        track_id=entity.track_id,
-                        confidence=1.0,
-                    )
-                )
-
-        return self.renderer.render_frame(
-            frame=frame,
-            player_states=frame_results["player_entities"],  # Player entities only
-            ball_detections=frame_results["ball_detections"],
-            referee_detections=referee_detections,  # Convert back for renderer
-            team_colors=frame_results["team_colors"],
-            possession_info=frame_results["possession_info"],
-            camera_movement=frame_results["camera_movement"],
-        )
-
-    def _create_analysis_results(
-        self,
-        field_entity_tracks: Dict[int, List[FieldEntityState]],
-        ball_tracks: List[Dict[int, Dict[str, Any]]],
-        camera_movements: List[List[float]],
-        possession_history: List[Any],
-        video_props: Dict[str, Any],
-    ) -> MatchAnalysis:
-        """Create final analysis results."""
-
-        # Calculate team ball control from player entities only
-        # Create frame-by-frame player states for possession analysis
-        frame_player_states = []
-
-        # Extract player tracks from field entity tracks
-        player_tracks = {}
-        for track_id, entity_track in field_entity_tracks.items():
-            player_entities = [entity for entity in entity_track if entity.is_player]
-            if player_entities:
-                player_tracks[track_id] = player_entities
-
-        max_frames = (
-            max(len(states) for states in player_tracks.values())
-            if player_tracks
-            else 0
-        )
-
-        for frame_idx in range(max_frames):
-            frame_players = []
-            for track_id, states in player_tracks.items():
-                if frame_idx < len(states):
-                    frame_players.append(states[frame_idx])
-            frame_player_states.append(frame_players)
-
-        team_possession_stats = self.possession_analyzer.get_possession_stats(
-            frame_player_states
-        )
-
-        # Create team ball control array (simplified)
-        team_ball_control = np.array(
-            [
-                team_possession_stats.get("team_1_possession", 0),
-                team_possession_stats.get("team_2_possession", 0),
-            ]
-        )
-
-        return MatchAnalysis(
-            field_entity_tracks=field_entity_tracks,
-            ball_tracks=ball_tracks,
-            team_ball_control=team_ball_control,
-            camera_movement=camera_movements,
-            total_frames=len(camera_movements),
-            fps=video_props["fps"],
-        )
+    # ==================== UTILITY AND HELPER METHODS ====================
 
     def _get_previous_positions(self) -> Dict[int, Tuple[float, float]]:
         """Get previous positions for speed calculation."""
@@ -506,121 +761,6 @@ class FootballAnalysisPipeline:
         with open(filepath, "rb") as f:
             self.analysis_results = pickle.load(f)
 
-    def _try_load_cache(self) -> Optional[MatchAnalysis]:
-        """Try to load cached analysis results."""
-        cache_path = os.path.join(
-            self.config.processing.output_directory, "analysis_cache.pkl"
-        )
-        if not (self.config.processing.load_from_cache and os.path.exists(cache_path)):
-            return None
-
-        print("Loading cached analysis results...")
-        try:
-            with open(cache_path, "rb") as f:
-                cached_results = pickle.load(f)
-            self.analysis_results = cached_results
-            print("Cached results loaded successfully")
-            return cached_results
-        except Exception as e:
-            print(f"Failed to load cache: {e}")
-            return None
-
-    def _setup_video_processing(self, video_path: str) -> Dict[str, Any]:
-        """Setup video processing and get video properties."""
-        video_props = get_video_properties(video_path)
-        print(f"Video properties: {video_props}")
-
-        keypoints = self.coordinate_transformer.get_field_corners()
-        if keypoints:
-            print("Using configured field keypoints")
-        else:
-            print("No field keypoints configured")
-
-        return video_props
-
-    def _initialize_tracking_data(self) -> Dict[str, Any]:
-        """Initialize all tracking data structures."""
-        self._previous_positions: Dict[int, Tuple[float, float]] = {}
-        self._team_assignments_by_track_id = {}  # Reset team assignment cache
-        self._team_colors_analyzed = False  # Reset team color analysis flag
-        return {
-            "field_entity_tracks": {},
-            "ball_tracks": [],
-            "camera_movements": [],
-            "possession_history": [],
-        }
-
-    def _setup_video_writer(
-        self, output_video_path: Optional[str], video_props: Dict[str, Any]
-    ) -> Optional[VideoWriter]:
-        """Setup video writer if output path is provided."""
-        if not output_video_path:
-            return None
-        return VideoWriter(
-            output_video_path,
-            fps=video_props["fps"],
-            frame_size=(video_props["width"], video_props["height"]),
-        )
-
-    def _process_all_frames(
-        self,
-        video_path: str,
-        video_props: Dict[str, Any],
-        video_writer: Optional[VideoWriter],
-        tracking_data: Dict[str, Any],
-    ) -> int:
-        """Process all video frames and return total frame count."""
-        frame_count = 0
-
-        try:
-            with video_writer if video_writer else contextlib.nullcontext():
-                for frame in tqdm(
-                    read_video_frames(video_path),
-                    total=video_props["frame_count"],
-                    desc="Processing frames",
-                ):
-                    # Process single frame
-                    frame_results = self._process_frame(
-                        frame, frame_count, video_props["fps"]
-                    )
-
-                    # Store results
-                    self._store_frame_results(
-                        frame_results,
-                        frame_count,
-                        tracking_data["field_entity_tracks"],
-                        tracking_data["ball_tracks"],
-                        tracking_data["camera_movements"],
-                        tracking_data["possession_history"],
-                    )
-
-                    # Render frame if output requested
-                    if video_writer:
-                        annotated_frame = self._render_frame(frame, frame_results)
-                        video_writer.write_frame(annotated_frame)
-
-                    frame_count += 1
-
-        except Exception as e:
-            print(f"Error during video processing: {e}")
-            raise
-
-        return frame_count
-
-    def _save_cache_if_enabled(self) -> None:
-        """Save analysis results to cache if caching is enabled."""
-        if not self.config.processing.save_to_cache:
-            return
-        try:
-            cache_path = os.path.join(
-                self.config.processing.output_directory, "analysis_cache.pkl"
-            )
-            with open(cache_path, "wb") as f:
-                pickle.dump(self.analysis_results, f)
-            print("Analysis results cached successfully")
-        except Exception as e:
-            print(f"Failed to save cache: {e}")
-
     def get_field_keypoints(self) -> Optional[List[List[float]]]:
         """Get current field keypoints."""
         return self.coordinate_transformer.get_field_corners()
@@ -637,9 +777,15 @@ class FootballAnalysisPipeline:
     def get_team_color_analysis_status(self) -> Dict[str, Any]:
         """Get the current status of team color analysis."""
         return {
-            "team_colors": (
-                self.team_analyzer.get_team_colors()
-                if hasattr(self, "team_analyzer")
+            "team_features": (
+                self.team_assigner._team_features
+                if hasattr(self, "team_assigner")
+                and self.team_assigner.has_team_features()
+                else None
+            ),
+            "assignments": (
+                self.team_assigner.get_assignment_stats()
+                if hasattr(self, "team_assigner")
                 else None
             ),
         }
