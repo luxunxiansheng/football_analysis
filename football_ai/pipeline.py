@@ -2,11 +2,12 @@
 Modern Football Analysis Pipeline
 """
 
-import numpy as np
+
 from typing import List, Dict, Optional, Tuple, Any
 import pickle
 import os.path
 import contextlib
+import numpy as np
 from tqdm import tqdm
 import logging
 
@@ -364,22 +365,23 @@ class FootballAnalysisPipeline:
         # Group detections by type
         detection_groups = self._group_detections_by_type(tracked_detections)
 
-        # Team color analysis and player assignment (consolidated logic)
+    
         field_players = detection_groups["player"] + detection_groups["goalkeeper"]
+        players = detection_groups["player"]
         
         if not self._team_colors_analyzed:
             # Initial team color analysis and batch assignment
-            if len(field_players) >= 4:
+            if len(players) >= 4:
                 logger.info(
-                    f"Analyzing team colors with {len(field_players)} players at frame {frame_number}"
+                    f"Analyzing team colors with {len(players)} players at frame {frame_number}"
                 )
                 team_features = self.team_analyzer.analyze_team_features(
-                    frame, field_players
+                    frame, players
                 )
                 if team_features and len(team_features) >= 2:
                     self.team_assigner.set_team_features(team_features)
                     assignments = self.team_assigner.assign_players_batch(
-                        frame, field_players
+                        frame, players
                     )
                     self._team_colors_analyzed = True
                     logger.info(
@@ -392,7 +394,7 @@ class FootballAnalysisPipeline:
         else:
             # Assign new players to established teams
             new_players_assigned = 0
-            for detection in field_players:
+            for detection in players:
                 if (
                     detection.track_id is not None
                     and self.team_assigner.get_player_team_assignment(

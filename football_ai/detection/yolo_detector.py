@@ -2,18 +2,12 @@
 Modern YOLO-based object detector for football analysis.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List
 import numpy as np
 from ultralytics import YOLO
 
-try:
-    import supervision as sv
-except ImportError:
-    sv = None
-
 from ..domain.interfaces import ObjectDetector
 from ..domain.models import Detection, BoundingBox, ObjectType
-
 
 class YOLODetector(ObjectDetector):
     """YOLO detector implementation with clean architecture."""
