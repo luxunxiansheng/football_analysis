@@ -1,17 +1,15 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from ..domain.models import Detection
-
 
 @dataclass
 class FrameData:
     frame_number: int
     timestamp: float
     raw_frame: Any  # e.g., numpy array
-    detections: Optional[List["Detection"]] = field(default_factory=list)
-    keypoints: Optional[List[Dict]] = field(default_factory=list)
-    tracks: Optional[List[Dict]] = field(default_factory=list)
+    detections: Optional[List[Any]] = field(default_factory=list)  # List[Detection]
+    keypoints: Optional[List[Any]] = field(default_factory=list)  # List[Keypoints]
+    tracks: Optional[List[Any]] = field(default_factory=list)  # List[Track]
     team_assignments: Optional[Dict[int, str]] = field(default_factory=dict)
     analysis_results: Optional[Dict[str, Any]] = field(default_factory=dict)
     metadata: Optional[Dict[str, Any]] = field(default_factory=dict)

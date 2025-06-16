@@ -20,16 +20,17 @@ from .domain.models import (
     TeamColor,
     MatchAnalysis,
 )
-
-# from .tracking.byte_tracker import ByteTracker
-from .analysis.team_color_analyzer import KMeansTeamColorAnalyzer
-from .assignment.team_assigner import TeamAssigner
-from .analysis.ball_possession_analyzer import DistanceBasedBallPossessionAnalyzer
-
-# from .motion.camera_motion_tracker import OpticalFlowCameraTracker
-from .transformation.coordinate_transformer import PerspectiveCoordinateTransformer
-from .rendering.video_renderer import VideoRenderer
-from .utils.video_utils import read_video_frames, get_video_properties, VideoWriter
+from football_ai.detection.object_detection_processor import ObjectDetectionProcessor
+from football_ai.tracking.track_processor import TrackProcessor
+from football_ai.motion.camera_motion_processor import CameraMotionProcessor
+from football_ai.motion.object_motion_processor import ObjectMotionProcessor
+from football_ai.transformation.field_transformation_processor import (
+    SimpleFieldTransformationProcessor,
+)
+from football_ai.assignment.team_assignment_processor import TeamAssignmentProcessor
+from football_ai.assignment.ball_assignment_processor import BallAssignmentProcessor
+from football_ai.rendering.renderer_processor import RendererProcessor
+from football_ai.domain.data_models import VideoData
 
 logger = logging.getLogger("football_ai.pipeline")
 
@@ -74,28 +75,24 @@ class FootballAnalysisPipeline:
 
         os.makedirs(self.config.processing.output_directory, exist_ok=True)
 
-        # Initialize components
-        self.detector = YOLODetector(
-            self.config.model.player_model_path, self.config.model.confidence_threshold
-        )
-
-        # Initialize keypoint detector if enabled
-        self.keypoint_detector = None
-        if self.config.model.enable_keypoint_detection:
-            self.keypoint_detector = YOLOKeypointDetector(
-                self.config.model.field_model_path,
-                self.config.model.keypoint_confidence_threshold,
-            )
-
-        # self.tracker = ByteTracker()
-        self.team_analyzer = KMeansTeamColorAnalyzer()
-        self.team_assigner = TeamAssigner()
-        self.possession_analyzer = DistanceBasedBallPossessionAnalyzer()
-        # self.camera_tracker = OpticalFlowCameraTracker()
-        self.coordinate_transformer = PerspectiveCoordinateTransformer(
-            field_corners=self.config.transformation.default_keypoints
-        )
-        self.renderer = VideoRenderer()
+        # Initialize processors
+        self.processors = [
+            ObjectDetectionProcessor(self.config.model.detection_model_path),
+            TrackProcessor(),
+            CameraMotionProcessor(),
+            ObjectMotionProcessor(),
+            SimpleFieldTransformationProcessor(),
+            TeamAssignmentProcessor(),
+            BallAssignmentProcessor(),
+            RendererProcessor(
+                self.config.processing.output_directory,
+                {
+                    "show_fps": self.config.rendering.show_fps,
+                    "show_ball_trajectory": self.config.rendering.show_ball_trajectory,
+                    "player_color_map": self.config.rendering.player_color_map,
+                },
+            ),
+        ]
 
         # State
         self.analysis_results: Optional[MatchAnalysis] = None
@@ -356,84 +353,13 @@ class FootballAnalysisPipeline:
         - Calculate positions and movement
         - Analyze ball possession
         """
-        # Core detection and tracking
-        detections = self.detector.detect(frame)
-        # tracked_detections = self.tracker.update(detections)
-        # camera_movement = self.camera_tracker.track_movement(frame)
+        video_data = VideoData(frame=frame, frame_number=frame_number, fps=fps)
 
-        # Group detections by type
-        detection_groups = self._group_detections_by_type(tracked_detections)
+        # Pass video data through all processors
+        for processor in self.processors:
+            video_data = processor.process(video_data)
 
-        field_players = detection_groups["player"] + detection_groups["goalkeeper"]
-        players = detection_groups["player"]
-
-        if not self._team_colors_analyzed:
-            # Initial team color analysis and batch assignment
-            if len(players) >= 4:
-                logger.info(
-                    f"Analyzing team colors with {len(players)} players at frame {frame_number}"
-                )
-                team_features = self.team_analyzer.analyze_team_features(frame, players)
-                if team_features and len(team_features) >= 2:
-                    self.team_assigner.set_team_features(team_features)
-                    assignments = self.team_assigner.assign_players_batch(
-                        frame, players
-                    )
-                    self._team_colors_analyzed = True
-                    logger.info(
-                        f"Team colors analyzed and assigned {len(assignments)} players"
-                    )
-                    stats = self.team_assigner.get_assignment_stats()
-                    logger.info(f"Assignment stats: {stats}")
-                else:
-                    logger.warning("Failed to identify distinct team colors")
-        else:
-            # Assign new players to established teams
-            new_players_assigned = 0
-            for detection in players:
-                if (
-                    detection.track_id is not None
-                    and self.team_assigner.get_player_team_assignment(
-                        detection.track_id
-                    )
-                    is None
-                ):
-                    assignment = self.team_assigner.assign_player_team(frame, detection)
-                    if assignment is not None:
-                        new_players_assigned += 1
-            if new_players_assigned > 0:
-                logger.info(f"Assigned {new_players_assigned} new players to teams")
-
-        # Create entity states with position calculations
-        player_entities = self._create_player_states(
-            field_players, frame, frame_number, fps
-        )
-        referee_entities = self._create_referee_states(
-            detection_groups["referee"], frame, frame_number, fps
-        )
-
-        # Update position tracking for movement calculations
-        all_field_entities = player_entities + referee_entities
-        self._update_position_tracking(all_field_entities)
-
-        # Analyze ball possession
-        possession_info = self.possession_analyzer.analyze_possession(
-            detection_groups["ball"], player_entities
-        )
-
-        return {
-            "frame_number": frame_number,
-            "field_entities": all_field_entities,
-            "player_entities": player_entities,
-            "ball_detections": detection_groups["ball"],
-            # "camera_movement": camera_movement,
-            "possession_info": possession_info,
-            "team_colors": (
-                self._convert_team_features_to_colors(self.team_assigner._team_features)
-                if self.team_assigner.has_team_features()
-                else None
-            ),
-        }
+        return video_data
 
     def _store_frame_results_in_tracking_data(
         self,
