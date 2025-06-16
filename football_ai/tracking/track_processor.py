@@ -1,45 +1,35 @@
-from ..domain.data_models import VideoData, FrameData
+from supervision.tracker.byte_tracker.core import ByteTrack
+from supervision.detection.core import Detections
+import numpy as np
+
+from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
 from ..domain.models import Detection
-import numpy as np
 
 
 class TrackProcessor(Processor):
-    def __init__(self, max_distance: float = 50.0):
-        self.max_distance = max_distance
-        self.next_id = 1
-        self.prev_detections = []  # List of (track_id, center_x, center_y)
+    def __init__(self):
+        self.tracker = ByteTrack()
 
     def process(self, data: VideoData) -> VideoData:
-        self.next_id = 1
-        self.prev_detections = []
         for frame_data in data.frames:
             detections = frame_data.detections or []
-            centers = [self._get_center(det) for det in detections]
-            assigned_ids = [-1] * len(detections)
-            # Match to previous detections
-            for i, center in enumerate(centers):
-                min_dist = float("inf")
-                min_j = -1
-                for j, (track_id, prev_x, prev_y) in enumerate(self.prev_detections):
-                    dist = np.linalg.norm(np.array(center) - np.array([prev_x, prev_y]))
-                    if dist < min_dist and dist < self.max_distance:
-                        min_dist = dist
-                        min_j = j
-                if min_j >= 0:
-                    assigned_ids[i] = self.prev_detections[min_j][0]
-                else:
-                    assigned_ids[i] = self.next_id
-                    self.next_id += 1
-            # Assign IDs
-            for det, tid in zip(detections, assigned_ids):
-                det.track_id = tid
-            # Update prev_detections for next frame
-            self.prev_detections = [
-                (det.track_id, *self._get_center(det)) for det in detections
-            ]
+            if not detections:
+                continue
+            boxes = np.array([det.bbox.as_list() for det in detections])
+            confidences = np.array([det.confidence for det in detections])
+            class_ids = np.array(
+                [0 for _ in detections]
+            )  # Use 0 for all, or map if needed
+            sv_detections = Detections(
+                xyxy=boxes,
+                confidence=confidences,
+                class_id=class_ids,
+            )
+            tracked = self.tracker.update_with_detections(sv_detections)
+            # Assign track IDs back to detections
+            for det, tid in zip(
+                detections, getattr(tracked, "tracker_id", [None] * len(detections))
+            ):
+                det.track_id = int(tid) if tid is not None else None
         return data
-
-    def _get_center(self, det: Detection):
-        bbox = det.bbox
-        return ((bbox.x1 + bbox.x2) / 2, (bbox.y1 + bbox.y2) / 2)

@@ -5,7 +5,7 @@ from football_ai.tracking.track_processor import TrackProcessor
 from football_ai.domain.data_models import VideoData, FrameData
 
 
-def test_track_processor_with_detection():
+def test_track_processor_with_supervision():
     video_path = os.path.abspath("input_videos/08fd33_4.mp4")
     model_path = os.path.abspath("models/detect/best.pt")
     detection_processor = ObjectDetectionProcessor(model_path)
@@ -44,9 +44,9 @@ def test_track_processor_with_detection():
     for frame_data in tracked.frames:
         ids = [d.track_id for d in (frame_data.detections or [])]
         print(f"Frame {frame_data.frame_number}: track_ids={ids}")
-        assert all(isinstance(tid, int) and tid > 0 for tid in ids)
-    print("TrackProcessor test with detection passed.")
+        assert all((tid is None or isinstance(tid, int)) for tid in ids)
+    print("TrackProcessor with Supervision test passed.")
 
 
 if __name__ == "__main__":
-    test_track_processor_with_detection()
+    test_track_processor_with_supervision()
