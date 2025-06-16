@@ -15,6 +15,7 @@ from .models import (
     TeamAssignment,
     TeamFeatures,
 )
+from .data_models import VideoData
 
 
 class ObjectDetector(ABC):
@@ -193,4 +194,13 @@ class TeamAssigner(ABC):
     @abstractmethod
     def has_team_features(self) -> bool:
         """Check if team features have been established."""
+        pass
+
+
+class Processor(ABC):
+    @abstractmethod
+    def process(self, data: VideoData) -> VideoData:
+        """
+        Process the input VideoData and return the result.
+        """
         pass
