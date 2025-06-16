@@ -5,7 +5,7 @@ A clean, modular, and extensible football video analysis system with
 comprehensive dataclass-based configuration.
 """
 
-from .pipeline import FootballAnalysisPipeline
+
 from .config import (
     FootballAIConfig,
     get_default_config,
