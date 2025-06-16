@@ -21,8 +21,7 @@ from .domain.models import (
     TeamColor,
     MatchAnalysis,
 )
-from .detection.yolo_detector import YOLODetector
-from .detection.yolo_keypoint_detector import YOLOKeypointDetector
+
 from .tracking.byte_tracker import ByteTracker
 from .analysis.team_color_analyzer import KMeansTeamColorAnalyzer
 from .assignment.team_assigner import TeamAssigner

@@ -1,6 +1,6 @@
 # Detection module
 
-from .yolo_detector import YOLODetector
-from .yolo_keypoint_detector import YOLOKeypointDetector
+from .object_detection_processor import ObjectDetectionProcessor
 
-__all__ = ["YOLODetector", "YOLOKeypointDetector"]
+
+__all__ = ["ObjectDetectionProcessor"]
