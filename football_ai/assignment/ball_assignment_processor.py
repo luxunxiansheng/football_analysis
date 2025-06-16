@@ -4,15 +4,6 @@ from ..domain.interfaces import Processor
 from ..domain.types import Detection
 
 
-# Minimal Detection class for modular pipeline
-class Detection:
-    def __init__(self, bbox, object_type=None, confidence=1.0, track_id=None):
-        self.bbox = bbox
-        self.object_type = object_type
-        self.confidence = confidence
-        self.track_id = track_id
-
-
 class BallAssignmentProcessor(Processor):
     def __init__(self, max_distance: float = 50.0):
         self.max_distance = max_distance  # in pixels

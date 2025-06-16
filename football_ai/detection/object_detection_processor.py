@@ -1,16 +1,8 @@
 import numpy as np
-from ..domain.data_models import VideoData
+from ..domain.data_models import VideoData, BoundingBox, Detection, ObjectType
 from ..domain.interfaces import Processor
-from ..domain.types import Detection, BoundingBox
+
 from ultralytics import YOLO
-
-
-# Minimal types for modular pipeline
-class ObjectType:
-    PLAYER = "player"
-    GOALKEEPER = "goalkeeper"
-    REFEREE = "referee"
-    BALL = "ball"
 
 
 class ObjectDetectionProcessor(Processor):
@@ -43,13 +35,13 @@ class ObjectDetectionProcessor(Processor):
         for box, conf, class_id in zip(boxes, confidences, class_ids):
             class_name = class_names.get(class_id, "unknown")
             if class_name == "player":
-                object_type = "player"
+                object_type = ObjectType.PLAYER
             elif class_name == "goalkeeper":
-                object_type = "goalkeeper"
+                object_type = ObjectType.GOALKEEPER
             elif class_name == "referee":
-                object_type = "referee"
+                object_type = ObjectType.REFEREE
             elif class_name == "ball":
-                object_type = "ball"
+                object_type = ObjectType.BALL
             else:
                 continue
             bbox = BoundingBox(
@@ -59,8 +51,6 @@ class ObjectDetectionProcessor(Processor):
                 y2=float(box[3]),
                 confidence=float(conf),
             )
-            detection = Detection(
-                bbox=bbox, object_type=object_type, confidence=float(conf)
-            )
+            detection = Detection(bbox=bbox, object_type=object_type)
             detections.append(detection)
         return detections
