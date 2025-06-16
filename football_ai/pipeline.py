@@ -2,7 +2,6 @@
 Modern Football Analysis Pipeline
 """
 
-
 from typing import List, Dict, Optional, Tuple, Any
 import pickle
 import os.path
@@ -22,11 +21,12 @@ from .domain.models import (
     MatchAnalysis,
 )
 
-from .tracking.byte_tracker import ByteTracker
+# from .tracking.byte_tracker import ByteTracker
 from .analysis.team_color_analyzer import KMeansTeamColorAnalyzer
 from .assignment.team_assigner import TeamAssigner
 from .analysis.ball_possession_analyzer import DistanceBasedBallPossessionAnalyzer
-from .motion.camera_motion_tracker import OpticalFlowCameraTracker
+
+# from .motion.camera_motion_tracker import OpticalFlowCameraTracker
 from .transformation.coordinate_transformer import PerspectiveCoordinateTransformer
 from .rendering.video_renderer import VideoRenderer
 from .utils.video_utils import read_video_frames, get_video_properties, VideoWriter
@@ -87,11 +87,11 @@ class FootballAnalysisPipeline:
                 self.config.model.keypoint_confidence_threshold,
             )
 
-        self.tracker = ByteTracker()
+        # self.tracker = ByteTracker()
         self.team_analyzer = KMeansTeamColorAnalyzer()
         self.team_assigner = TeamAssigner()
         self.possession_analyzer = DistanceBasedBallPossessionAnalyzer()
-        self.camera_tracker = OpticalFlowCameraTracker()
+        # self.camera_tracker = OpticalFlowCameraTracker()
         self.coordinate_transformer = PerspectiveCoordinateTransformer(
             field_corners=self.config.transformation.default_keypoints
         )
@@ -358,25 +358,22 @@ class FootballAnalysisPipeline:
         """
         # Core detection and tracking
         detections = self.detector.detect(frame)
-        tracked_detections = self.tracker.update(detections)
-        camera_movement = self.camera_tracker.track_movement(frame)
+        # tracked_detections = self.tracker.update(detections)
+        # camera_movement = self.camera_tracker.track_movement(frame)
 
         # Group detections by type
         detection_groups = self._group_detections_by_type(tracked_detections)
 
-    
         field_players = detection_groups["player"] + detection_groups["goalkeeper"]
         players = detection_groups["player"]
-        
+
         if not self._team_colors_analyzed:
             # Initial team color analysis and batch assignment
             if len(players) >= 4:
                 logger.info(
                     f"Analyzing team colors with {len(players)} players at frame {frame_number}"
                 )
-                team_features = self.team_analyzer.analyze_team_features(
-                    frame, players
-                )
+                team_features = self.team_analyzer.analyze_team_features(frame, players)
                 if team_features and len(team_features) >= 2:
                     self.team_assigner.set_team_features(team_features)
                     assignments = self.team_assigner.assign_players_batch(
@@ -429,7 +426,7 @@ class FootballAnalysisPipeline:
             "field_entities": all_field_entities,
             "player_entities": player_entities,
             "ball_detections": detection_groups["ball"],
-            "camera_movement": camera_movement,
+            # "camera_movement": camera_movement,
             "possession_info": possession_info,
             "team_colors": (
                 self._convert_team_features_to_colors(self.team_assigner._team_features)
