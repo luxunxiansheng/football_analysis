@@ -5,8 +5,3 @@
 # - Analysis: Extracts and identifies team features (colors, patterns, etc.)
 # - Assignment: Uses identified features to assign individual players to teams
 #
-from .team_assigner import TeamAssigner
-
-__all__ = [
-    "TeamAssigner",
-]
