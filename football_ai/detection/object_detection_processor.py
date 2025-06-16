@@ -1,8 +1,16 @@
 import numpy as np
 from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
-from ..domain.models import Detection, BoundingBox, ObjectType
+from ..domain.types import Detection, BoundingBox
 from ultralytics import YOLO
+
+
+# Minimal types for modular pipeline
+class ObjectType:
+    PLAYER = "player"
+    GOALKEEPER = "goalkeeper"
+    REFEREE = "referee"
+    BALL = "ball"
 
 
 class ObjectDetectionProcessor(Processor):
@@ -18,13 +26,13 @@ class ObjectDetectionProcessor(Processor):
                 frame_data.detections = detections
         return data
 
-    def _detect_objects(self, frame: np.ndarray) -> list[Detection]:
+    def _detect_objects(self, frame: np.ndarray) -> list:
         result = self.model.predict(
             frame, conf=self.confidence_threshold, verbose=False
         )
         return self._parse_yolo_result(result[0])
 
-    def _parse_yolo_result(self, yolo_result) -> list[Detection]:
+    def _parse_yolo_result(self, yolo_result) -> list:
         detections = []
         if yolo_result.boxes is None:
             return detections
@@ -35,13 +43,13 @@ class ObjectDetectionProcessor(Processor):
         for box, conf, class_id in zip(boxes, confidences, class_ids):
             class_name = class_names.get(class_id, "unknown")
             if class_name == "player":
-                object_type = ObjectType.PLAYER
+                object_type = "player"
             elif class_name == "goalkeeper":
-                object_type = ObjectType.GOALKEEPER
+                object_type = "goalkeeper"
             elif class_name == "referee":
-                object_type = ObjectType.REFEREE
+                object_type = "referee"
             elif class_name == "ball":
-                object_type = ObjectType.BALL
+                object_type = "ball"
             else:
                 continue
             bbox = BoundingBox(

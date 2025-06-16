@@ -5,8 +5,21 @@ import numpy as np
 import cv2
 
 
-class SimpleFieldTransformationProcessor(Processor):
-    def __init__(self, field_width: float, field_height: float, pixel_corners: list):
+class FieldTransformationProcessor(Processor):
+    def __init__(
+        self,
+        field_width: float = 105.0,
+        field_height: float = 68.0,
+        pixel_corners: list = None,
+    ):
+        if pixel_corners is None:
+            # Default: user-specified real field corners
+            pixel_corners = [
+                [110, 1035],
+                [265, 275],
+                [910, 260],
+                [1640, 915],
+            ]
         self.field_width = field_width
         self.field_height = field_height
         self.pixel_corners = np.array(pixel_corners, dtype=np.float32)
