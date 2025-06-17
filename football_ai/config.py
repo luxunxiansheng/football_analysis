@@ -264,6 +264,7 @@ class FootballAIConfig:
     debug_mode: bool = False
     verbose_logging: bool = True
     log_level: str = "INFO"  # "DEBUG", "INFO", "WARNING", "ERROR"
+    show_progress_bars: bool = True  # Enable/disable progress bars during processing
 
     # Validation Settings
     validate_inputs: bool = True

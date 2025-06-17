@@ -5,6 +5,7 @@ RendererProcessor: Modular pipeline processor for rendering annotated football v
 import cv2
 import numpy as np
 from typing import Optional, Dict, Any
+from tqdm import tqdm
 from football_ai.domain.interfaces import Processor
 from football_ai.domain.data_models import VideoData, FrameData, ObjectType
 
@@ -33,10 +34,13 @@ class RendererProcessor(Processor):
             raise ValueError("No frames to render in VideoData.")
 
         # Store rendered frames back in the original video_data object
-        for i, frame_data in enumerate(video_data.frames):
+        progress_bar = tqdm(video_data.frames, desc="Rendering frames", unit="frames")
+
+        for i, frame_data in enumerate(progress_bar):
             rendered = self.render_frame(frame_data)
             frame_data.raw_frame = rendered
 
+        progress_bar.close()
         return video_data
 
     def render_frame(

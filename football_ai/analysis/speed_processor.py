@@ -1,6 +1,7 @@
 from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
 import math
+from tqdm import tqdm
 
 
 class SpeedProcessor(Processor):
@@ -14,7 +15,16 @@ class SpeedProcessor(Processor):
 
     def process(self, data: VideoData) -> VideoData:
         fps = getattr(data, "fps", 25)  # Default to 25 if not set
-        for frame_idx, frame_data in enumerate(data.frames):
+
+        # Use progress bar for speed calculation
+        progress_bar = tqdm(
+            enumerate(data.frames),
+            total=len(data.frames),
+            desc="Speed analysis",
+            unit="frames",
+        )
+
+        for frame_idx, frame_data in progress_bar:
             detections = frame_data.detections or []
             for detection in detections:
                 if detection.metadata is None:
@@ -35,4 +45,6 @@ class SpeedProcessor(Processor):
                         speed = dist / dt
                 detection.metadata["speed"] = speed
                 self._previous_positions[track_id] = (field_position, frame_idx)
+
+        progress_bar.close()
         return data

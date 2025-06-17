@@ -1,6 +1,7 @@
 from supervision.tracker.byte_tracker.core import ByteTrack
 from supervision.detection.core import Detections
 import numpy as np
+from tqdm import tqdm
 
 from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
@@ -11,7 +12,10 @@ class TrackProcessor(Processor):
         self.tracker = ByteTrack()
 
     def process(self, data: VideoData) -> VideoData:
-        for frame_data in data.frames:
+        # Use progress bar for tracking
+        progress_bar = tqdm(data.frames, desc="Object tracking", unit="frames")
+
+        for frame_data in progress_bar:
             detections = frame_data.detections or []
             if not detections:
                 continue
@@ -33,4 +37,6 @@ class TrackProcessor(Processor):
                 if detection.metadata is None:
                     detection.metadata = {}
                 detection.metadata["track_id"] = int(tid) if tid is not None else None
+
+        progress_bar.close()
         return data

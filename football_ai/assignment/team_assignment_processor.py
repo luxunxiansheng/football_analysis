@@ -1,4 +1,5 @@
 import numpy as np
+from tqdm import tqdm
 from ..domain.data_models import VideoData, FrameData
 from ..domain.interfaces import Processor
 from typing import Any
@@ -49,7 +50,15 @@ class TeamAssignmentProcessor(Processor):
         self.assigner = assigner or KMeansTeamAssigner()
 
     def process(self, data: VideoData) -> VideoData:
-        for frame_data in data.frames:
+        # Use progress bar only if processing many frames (>50)
+        if len(data.frames) > 50:
+            progress_bar = tqdm(data.frames, desc="Team assignment", unit="frames")
+            frame_iterator = progress_bar
+        else:
+            frame_iterator = data.frames
+            progress_bar = None
+
+        for frame_data in frame_iterator:
             detections = frame_data.detections or []
             features = []
             player_indices = []
@@ -58,8 +67,13 @@ class TeamAssignmentProcessor(Processor):
                 if getattr(detection, "object_type", None) in (
                     "player",
                     "goalkeeper",
-                ) or getattr(detection, "class_name", "").lower() in ("player", "goalkeeper"):
-                    feat = self.feature_extractor.extract(frame_data.raw_frame, detection)
+                ) or getattr(detection, "class_name", "").lower() in (
+                    "player",
+                    "goalkeeper",
+                ):
+                    feat = self.feature_extractor.extract(
+                        frame_data.raw_frame, detection
+                    )
                     features.append(feat)
                     player_indices.append(idx)
             if features:
@@ -72,4 +86,7 @@ class TeamAssignmentProcessor(Processor):
                     detection.metadata["team"] = (
                         int(labels[i]) + 1
                     )  # Use integer team id (1, 2, ...)
+
+        if progress_bar:
+            progress_bar.close()
         return data

@@ -1,4 +1,5 @@
 import numpy as np
+from tqdm import tqdm
 from ..domain.data_models import VideoData, FrameData
 from ..domain.interfaces import Processor
 import cv2
@@ -11,7 +12,15 @@ class CameraMotionProcessor(Processor):
         self.movements = []
 
     def process(self, data: VideoData) -> VideoData:
-        for frame_data in data.frames:
+        # Use progress bar only if processing many frames (>100)
+        if len(data.frames) > 100:
+            progress_bar = tqdm(data.frames, desc="Camera motion", unit="frames")
+            frame_iterator = progress_bar
+        else:
+            frame_iterator = data.frames
+            progress_bar = None
+
+        for frame_data in frame_iterator:
             frame = frame_data.raw_frame
             if frame is None:
                 continue
@@ -50,4 +59,7 @@ class CameraMotionProcessor(Processor):
                     frame_data.metadata = {}
                 frame_data.metadata["camera_movement"] = [0.0, 0.0]
             self.prev_gray = gray
+
+        if progress_bar:
+            progress_bar.close()
         return data

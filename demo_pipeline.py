@@ -10,6 +10,7 @@ if __name__ == "__main__":
 
     # Create configuration
     config = get_default_config()
+    config.show_progress_bars = True  # Enable progress bars
     config.update_paths(
         model_path="models/detect/best.pt",
         input_video_path="input_videos/08fd33_4.mp4",

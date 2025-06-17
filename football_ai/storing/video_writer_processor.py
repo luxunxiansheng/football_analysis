@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from tqdm import tqdm
 from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
 
@@ -22,7 +23,13 @@ class VideoWriterProcessor(Processor):
         out = cv2.VideoWriter(
             self.output_path, fourcc, video_data.frame_rate, (width, height)
         )
-        for frame_data in video_data.frames:
+
+        # Use progress bar for frame writing
+        progress_bar = tqdm(
+            video_data.frames, desc="Writing video frames", unit="frames"
+        )
+
+        for frame_data in progress_bar:
             frame = frame_data.raw_frame
             if frame is not None:
                 # Ensure frame is uint8 and 3-channel
@@ -34,5 +41,7 @@ class VideoWriterProcessor(Processor):
                 elif frame.shape[2] == 4:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
                 out.write(frame)
+
+        progress_bar.close()
         out.release()
         return video_data

@@ -1,4 +1,5 @@
 import numpy as np
+from tqdm import tqdm
 from ..domain.data_models import VideoData, BoundingBox, Detection, ObjectType
 from ..domain.interfaces import Processor
 
@@ -11,11 +12,16 @@ class ObjectDetectionProcessor(Processor):
         self.confidence_threshold = confidence_threshold
 
     def process(self, data: VideoData) -> VideoData:
-        for frame_data in data.frames:
+        # Use progress bar for object detection
+        progress_bar = tqdm(data.frames, desc="Object detection", unit="frames")
+
+        for frame_data in progress_bar:
             frame = frame_data.raw_frame
             if frame is not None:
                 detections = self._detect_objects(frame)
                 frame_data.detections = detections
+
+        progress_bar.close()
         return data
 
     def _detect_objects(self, frame: np.ndarray) -> list:

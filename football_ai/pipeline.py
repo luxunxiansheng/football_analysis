@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 import cv2
 import numpy as np
+from tqdm import tqdm
 
 from .config import FootballAIConfig, get_default_config
 from .domain.data_models import VideoData, FrameData
@@ -156,6 +157,14 @@ class FootballAnalysisPipeline:
             self.config.processing, "process_every_nth_frame", 1
         )
 
+        # Use tqdm for progress bar when loading frames
+        progress_bar = tqdm(
+            total=total_frames,
+            desc="Loading video frames",
+            unit="frames",
+            disable=not self.config.show_progress_bars,
+        )
+
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -170,7 +179,9 @@ class FootballAnalysisPipeline:
                 )
 
             frame_number += 1
+            progress_bar.update(1)
 
+        progress_bar.close()
         cap.release()
 
         video_data = VideoData(
@@ -211,8 +222,17 @@ class FootballAnalysisPipeline:
             # Process through pipeline
             self.logger.info("Starting video analysis pipeline")
 
-            for i, processor in enumerate(self.processors):
+            # Use progress bar for processor execution
+            processor_progress = tqdm(
+                self.processors,
+                desc="Processing pipeline",
+                unit="processor",
+                disable=not self.config.show_progress_bars,
+            )
+
+            for i, processor in enumerate(processor_progress):
                 processor_name = processor.__class__.__name__
+                processor_progress.set_description(f"Running {processor_name}")
                 self.logger.info(
                     f"Running processor {i+1}/{len(self.processors)}: {processor_name}"
                 )
@@ -223,12 +243,15 @@ class FootballAnalysisPipeline:
 
                 except Exception as e:
                     if self.config.strict_mode:
+                        processor_progress.close()
                         raise RuntimeError(
                             f"Processor {processor_name} failed: {e}"
                         ) from e
                     else:
                         self.logger.error(f"⚠ {processor_name} failed: {e}")
                         continue
+
+            processor_progress.close()
 
             # Save output video if writer processor wasn't included
             if output_path and not any(
