@@ -108,6 +108,9 @@ class PossessionConfig:
 class CameraConfig:
     """Configuration for camera motion tracking."""
 
+    # Enable/Disable camera tracking
+    enable_camera_tracking: bool = True
+
     # Feature Detection
     max_features: int = 100
     quality_level: float = 0.3

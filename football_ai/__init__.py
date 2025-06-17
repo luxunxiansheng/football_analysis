@@ -12,6 +12,7 @@ from .config import (
     get_fast_processing_config,
     get_broadcast_config,
 )
+from .pipeline import FootballAnalysisPipeline
 
 __version__ = "1.0.0"
 __author__ = "Football AI Team"
