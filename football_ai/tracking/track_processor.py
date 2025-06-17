@@ -4,7 +4,7 @@ import numpy as np
 
 from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
-from ..domain.types import Detection
+
 
 
 class TrackProcessor(Processor):

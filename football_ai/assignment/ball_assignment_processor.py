@@ -1,7 +1,7 @@
 import numpy as np
 from ..domain.data_models import VideoData, FrameData
 from ..domain.interfaces import Processor
-from ..domain.types import Detection
+
 
 
 class BallAssignmentProcessor(Processor):

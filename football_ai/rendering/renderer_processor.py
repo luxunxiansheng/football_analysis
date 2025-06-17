@@ -35,7 +35,7 @@ class RendererProcessor(Processor):
 
         # Prepare video writer
         height, width = video_data.resolution[1], video_data.resolution[0]
-        fourcc = cv2.VideoWriter_fourcc(*"h264")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # Use 'mp4v' for MP4 format
         out = cv2.VideoWriter(
             self.output_path, fourcc, video_data.frame_rate, (width, height)
         )
@@ -107,7 +107,7 @@ class RendererProcessor(Processor):
         """
         annotated_frame = frame.copy()
         if player_detections:
-            self.draw_players(annotated_frame, player_detections)
+            self._draw_players(annotated_frame, player_detections)
         if ball_detection:
             self._draw_ball(annotated_frame, ball_detection)
         if referee_detections:
@@ -161,7 +161,7 @@ class RendererProcessor(Processor):
         cv2.drawContours(frame, [triangle_points], 0, color, cv2.FILLED)
         cv2.drawContours(frame, [triangle_points], 0, (0, 0, 0), 2)
 
-    def draw_players(self, frame, player_detections):
+    def _draw_players(self, frame, player_detections):
         """Draw all player and goalkeeper detections."""
         for detection in player_detections:
             bbox = detection.bbox.as_list()
@@ -170,12 +170,12 @@ class RendererProcessor(Processor):
             is_goalkeeper = detection.object_type == ObjectType.GOALKEEPER
             if detection.team == 1:
                 color = (
-                    (0, 255, 255) if is_goalkeeper else (0, 255, 0)
-                )  # Yellow for GK, Green for team 1
+                    (255, 0, 0) if is_goalkeeper else (255, 255, 0)
+                )  # Red for GK, Green for team 1
             elif detection.team == 2:
                 color = (
-                    (255, 255, 0) if is_goalkeeper else (255, 0, 0)
-                )  # Cyan for GK, Blue for team 2
+                    (0, 0, 255) if is_goalkeeper else (0, 255, 255)
+                )  # Red for GK, Blue for team 2
             else:
                 color = (
                     (0, 255, 255) if is_goalkeeper else (128, 128, 128)
