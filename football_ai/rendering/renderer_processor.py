@@ -32,78 +32,44 @@ class RendererProcessor(Processor):
         if not video_data.frames:
             raise ValueError("No frames to render in VideoData.")
 
-        # Prepare video writer
-        height, width = video_data.resolution[1], video_data.resolution[0]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # Use 'mp4v' for MP4 format
-        out = cv2.VideoWriter(
-            self.output_path, fourcc, video_data.frame_rate, (width, height)
-        )
+        # Store rendered frames back in the original video_data object
+        for i, frame_data in enumerate(video_data.frames):
+            rendered = self.render_frame(frame_data)
+            frame_data.raw_frame = rendered
 
-        for frame_data in video_data.frames:
-            frame = (
-                frame_data.raw_frame.copy()
-                if hasattr(frame_data.raw_frame, "copy")
-                else np.array(frame_data.raw_frame)
-            )
-            frame_analysis = frame_data.frame_analysis or {}
-            metadata = frame_data.metadata or {}
-            detections = frame_data.detections or []
-
-            # Filter detections by object type
-            player_detections = []
-            referee_detections = []
-            ball_detection = None
-
-            for detection in detections:
-                if detection.object_type in [ObjectType.PLAYER, ObjectType.GOALKEEPER]:
-                    player_detections.append(detection)
-                elif detection.object_type == ObjectType.REFEREE:
-                    referee_detections.append(detection)
-                elif detection.object_type == ObjectType.BALL:
-                    # Only use the first ball detection found
-                    if ball_detection is None:
-                        ball_detection = detection
-
-            team_colors = frame_analysis.get("team_colors", None)
-            possession_info = frame_analysis.get("ball_possession", None)
-            camera_movement = frame_analysis.get("camera_movement", None)
-
-            rendered = self.render_frame(
-                frame,
-                player_detections=player_detections,
-                ball_detection=ball_detection,
-                referee_detections=referee_detections,
-                team_colors=team_colors,
-                possession_info=possession_info,
-                camera_movement=camera_movement,
-            )
-            out.write(rendered)
-        out.release()
         return video_data
 
     def render_frame(
         self,
-        frame,
-        player_detections=None,
-        ball_detection=None,
-        referee_detections=None,
-        team_colors=None,
-        possession_info=None,
-        camera_movement=None,
+        frame_data: FrameData,
     ):
         """
         Render all overlays for a single frame.
         Args:
-            frame: np.ndarray, the image to annotate
-            player_detections: list of Detection for players/goalkeepers (optional)
-            ball_detection: single Detection for the ball (optional)
-            referee_detections: list of Detection for referees (optional)
-            team_colors: dict (optional)
-            possession_info: dict (optional)
-            camera_movement: any (optional)
+            frame_data: FrameData object containing the frame and detections
         Returns:
             np.ndarray: annotated frame
         """
+        frame = (
+            frame_data.raw_frame.copy()
+            if hasattr(frame_data.raw_frame, "copy")
+            else np.array(frame_data.raw_frame)
+        )
+        detections = frame_data.detections or []
+        # Filter detections by object type
+        player_detections = []
+        referee_detections = []
+        ball_detection = None
+        for detection in detections:
+            if detection.object_type in [ObjectType.PLAYER, ObjectType.GOALKEEPER]:
+                player_detections.append(detection)
+            elif detection.object_type == ObjectType.REFEREE:
+                referee_detections.append(detection)
+            elif detection.object_type == ObjectType.BALL:
+                if ball_detection is None:
+                    ball_detection = detection
+
+        # Optionally extract overlays from frame_analysis if needed
         annotated_frame = frame.copy()
         if player_detections:
             self._draw_players(annotated_frame, player_detections)
@@ -127,10 +93,15 @@ class RendererProcessor(Processor):
             )
 
             # Draw track ID if available
-            if referee.track_id is not None:
+            track_id = (
+                referee.metadata["track_id"]
+                if referee.metadata and "track_id" in referee.metadata
+                else None
+            )
+            if track_id is not None:
                 cv2.putText(
                     frame,
-                    f"REF-{referee.track_id}",
+                    f"REF-{track_id}",
                     (int(bbox.x1), int(bbox.y1) - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
