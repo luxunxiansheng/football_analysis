@@ -7,7 +7,6 @@ import numpy as np
 from typing import Optional, Dict, Any
 from football_ai.domain.interfaces import Processor
 from football_ai.domain.data_models import VideoData, FrameData, ObjectType
-from football_ai.utils.bbox_utils import calculate_bbox_center
 
 
 class RendererProcessor(Processor):
@@ -148,7 +147,7 @@ class RendererProcessor(Processor):
         bbox = ball_detection.bbox.as_list()
         color = (0, 0, 255)  # Red color for ball
         y = int(bbox[1])
-        x, _ = calculate_bbox_center(bbox)
+        x, _ = self._calculate_bbox_center(bbox)
         x = int(x)
 
         triangle_points = np.array(
@@ -188,7 +187,7 @@ class RendererProcessor(Processor):
 
             # Draw ellipse at bottom of bbox with optional track ID
             y2 = int(bbox[3])
-            x_center, _ = calculate_bbox_center(bbox)
+            x_center, _ = self._calculate_bbox_center(bbox)
             x_center = int(x_center)
             width = int(bbox[2] - bbox[0])  # x2 - x1
 
@@ -238,3 +237,9 @@ class RendererProcessor(Processor):
                     (0, 0, 0),
                     2,
                 )
+
+    def _calculate_bbox_center(self, bbox):
+        x1, y1, x2, y2 = bbox
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        return (center_x, center_y)
