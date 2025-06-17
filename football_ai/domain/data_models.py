@@ -1,12 +1,14 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+
 # Minimal types for modular pipeline
 class ObjectType:
     PLAYER = "player"
     GOALKEEPER = "goalkeeper"
     REFEREE = "referee"
     BALL = "ball"
+
 
 @dataclass
 class BoundingBox:
@@ -19,15 +21,25 @@ class BoundingBox:
     def as_list(self):
         return [self.x1, self.y1, self.x2, self.y2]
 
+
 @dataclass
 class Detection:
+    """
+    Detection for a single object in a frame.
+    - bbox: bounding box
+    - keypoints: pose or landmark keypoints
+    - object_type: e.g. player, ball, referee
+    - confidence: detection confidence
+    - metadata: dict for all extra info (track_id, team, field_position, speed, etc.)
+    """
+
     bbox: BoundingBox
-    keypoints: Optional[List[Any]] = field(default_factory=list) 
+    keypoints: Optional[List[Any]] = field(default_factory=list)
     object_type: Optional[str] = None
     confidence: float = 1.0
-    track_id: Optional[int] = None
-    team: Optional[int] = None
-        
+    metadata: Optional[dict] = field(default_factory=dict)
+
+
 @dataclass
 class FrameData:
     frame_number: int
@@ -35,6 +47,7 @@ class FrameData:
     raw_frame: Any  # e.g., numpy array
     detections: Optional[List[Detection]] = field(default_factory=list)
     metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
+
 
 @dataclass
 class VideoData:

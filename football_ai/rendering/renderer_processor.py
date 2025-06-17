@@ -168,11 +168,16 @@ class RendererProcessor(Processor):
 
             # Color based on object type and team
             is_goalkeeper = detection.object_type == ObjectType.GOALKEEPER
-            if detection.team == 1:
+            team = (
+                detection.metadata["team"]
+                if detection.metadata and "team" in detection.metadata
+                else None
+            )
+            if team == 1:
                 color = (
                     (255, 0, 0) if is_goalkeeper else (255, 255, 0)
                 )  # Red for GK, Green for team 1
-            elif detection.team == 2:
+            elif team == 2:
                 color = (
                     (0, 0, 255) if is_goalkeeper else (0, 255, 255)
                 )  # Red for GK, Blue for team 2
@@ -206,7 +211,12 @@ class RendererProcessor(Processor):
             y1_rect = (y2 - rectangle_height // 2) + 15
             y2_rect = (y2 + rectangle_height // 2) + 15
 
-            if detection.track_id is not None:
+            track_id = (
+                detection.metadata["track_id"]
+                if detection.metadata and "track_id" in detection.metadata
+                else None
+            )
+            if track_id is not None:
                 cv2.rectangle(
                     frame,
                     (int(x1_rect), int(y1_rect)),
@@ -216,12 +226,12 @@ class RendererProcessor(Processor):
                 )
 
                 x1_text = x1_rect + 12
-                if detection.track_id > 99:
+                if track_id > 99:
                     x1_text -= 10
 
                 cv2.putText(
                     frame,
-                    f"{detection.track_id}",
+                    f"{track_id}",
                     (int(x1_text), int(y1_rect + 15)),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,

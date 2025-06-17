@@ -6,7 +6,6 @@ from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
 
 
-
 class TrackProcessor(Processor):
     def __init__(self):
         self.tracker = ByteTrack()
@@ -28,8 +27,10 @@ class TrackProcessor(Processor):
             )
             tracked = self.tracker.update_with_detections(sv_detections)
             # Assign track IDs back to detections
-            for det, tid in zip(
+            for detection, tid in zip(
                 detections, getattr(tracked, "tracker_id", [None] * len(detections))
             ):
-                det.track_id = int(tid) if tid is not None else None
+                if detection.metadata is None:
+                    detection.metadata = {}
+                detection.metadata["track_id"] = int(tid) if tid is not None else None
         return data

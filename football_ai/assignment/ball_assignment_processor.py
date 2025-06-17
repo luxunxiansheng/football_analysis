@@ -3,7 +3,6 @@ from ..domain.data_models import VideoData, FrameData
 from ..domain.interfaces import Processor
 
 
-
 class BallAssignmentProcessor(Processor):
     def __init__(self, max_distance: float = 50.0):
         self.max_distance = max_distance  # in pixels
@@ -23,26 +22,24 @@ class BallAssignmentProcessor(Processor):
                 if getattr(d, "object_type", None) in ("player", "goalkeeper")
                 or getattr(d, "class_name", "").lower() in ("player", "goalkeeper")
             ]
-            assignments = {}
             # Assign each ball to the closest player/goalkeeper within max_distance
             for ball_idx in ball_indices:
-                ball_det = detections[ball_idx]
-                ball_center = self._get_center(ball_det)
+                ball_detection = detections[ball_idx]
+                if ball_detection.metadata is None:
+                    ball_detection.metadata = {}
+                ball_center = self._get_center(ball_detection)
                 min_dist = float("inf")
                 assigned_idx = None
                 for p_idx in player_indices:
-                    player_det = detections[p_idx]
-                    player_center = self._get_center(player_det)
+                    player_detection = detections[p_idx]
+                    player_center = self._get_center(player_detection)
                     dist = np.linalg.norm(
                         np.array(ball_center) - np.array(player_center)
                     )
                     if dist < min_dist and dist <= self.max_distance:
                         min_dist = dist
                         assigned_idx = p_idx
-                assignments[ball_idx] = assigned_idx
-            if frame_data.metadata is None:
-                frame_data.metadata = {}
-            frame_data.metadata["ball_assignments"] = assignments
+                ball_detection.metadata["assigned_player"] = assigned_idx
         return data
 
     def _get_center(self, det):

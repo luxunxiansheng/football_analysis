@@ -38,18 +38,14 @@ class FieldTransformationProcessor(Processor):
 
     def process(self, data: VideoData) -> VideoData:
         for frame_data in data.frames:
-            positions = (
-                frame_data.metadata.get("object_positions", {})
-                if frame_data.metadata
-                else {}
-            )
-            field_positions = {}
-            for obj_id, pixel_pos in positions.items():
-                field_pos = self.transform_point(tuple(pixel_pos))
-                field_positions[obj_id] = field_pos
-            if frame_data.metadata is None:
-                frame_data.metadata = {}
-            frame_data.metadata["field_positions"] = field_positions
+            detections = frame_data.detections or []
+            for detection in detections:
+                if detection.metadata is None:
+                    detection.metadata = {}
+                pixel_pos = detection.metadata.get("object_position")
+                if pixel_pos is not None:
+                    field_pos = self.transform_point(tuple(pixel_pos))
+                    detection.metadata["field_position"] = field_pos
         return data
 
     def transform_point(self, pixel_point: Tuple[float, float]) -> Tuple[float, float]:

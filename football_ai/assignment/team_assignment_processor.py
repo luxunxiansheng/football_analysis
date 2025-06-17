@@ -53,19 +53,23 @@ class TeamAssignmentProcessor(Processor):
             detections = frame_data.detections or []
             features = []
             player_indices = []
-            for idx, det in enumerate(detections):
+            for idx, detection in enumerate(detections):
                 # Assign to team if detection is a player or goalkeeper by class name
-                if getattr(det, "object_type", None) in (
+                if getattr(detection, "object_type", None) in (
                     "player",
                     "goalkeeper",
-                ) or getattr(det, "class_name", "").lower() in ("player", "goalkeeper"):
-                    feat = self.feature_extractor.extract(frame_data.raw_frame, det)
+                ) or getattr(detection, "class_name", "").lower() in ("player", "goalkeeper"):
+                    feat = self.feature_extractor.extract(frame_data.raw_frame, detection)
                     features.append(feat)
                     player_indices.append(idx)
             if features:
                 features_np = np.array(features)
                 labels = self.assigner.assign(features_np)
                 for i, idx in enumerate(player_indices):
-                    det = detections[idx]
-                    det.team = int(labels[i]) + 1  # Use integer team id (1, 2, ...)
+                    detection = detections[idx]
+                    if detection.metadata is None:
+                        detection.metadata = {}
+                    detection.metadata["team"] = (
+                        int(labels[i]) + 1
+                    )  # Use integer team id (1, 2, ...)
         return data
