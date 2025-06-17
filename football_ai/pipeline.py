@@ -105,10 +105,17 @@ class FootballAnalysisPipeline:
             hasattr(self.config.processing, "output_video_path")
             and self.config.processing.output_video_path
         ):
+            # Add renderer to annotate frames
             self.processors.append(
                 RendererProcessor(
                     output_path=self.config.processing.output_video_path,
                     render_config=self.config.rendering.__dict__,
+                )
+            )
+            # Add video writer to save the annotated frames
+            self.processors.append(
+                VideoWriterProcessor(
+                    output_path=self.config.processing.output_video_path
                 )
             )
 
