@@ -1,0 +1,4 @@
+{
+    "python.defaultInterpreterPath": "/home/ray/anaconda3/bin/python",
+    "python.terminal.activateEnvironment": true
+}

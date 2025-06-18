@@ -62,21 +62,21 @@ class TrackProcessor(Processor):
             # More aggressive filtering to prevent spurious tracks
             # Different thresholds for different object types
             filtered_detections = []
-            for det in detections:
+            for detection in detections:
                 min_conf = 0.3  # Default minimum confidence
 
                 # Adjust confidence thresholds by object type
-                if det.object_type == "player":
+                if detection.object_type == "player":
                     min_conf = 0.4  # Higher for players (most important)
-                elif det.object_type == "ball":
+                elif detection.object_type == "ball":
                     min_conf = 0.2  # Lower for ball (harder to detect)
-                elif det.object_type == "referee":
+                elif detection.object_type == "referee":
                     min_conf = 0.35  # Medium for referees
-                elif det.object_type == "goalkeeper":
+                elif detection.object_type == "goalkeeper":
                     min_conf = 0.35  # Medium for goalkeepers
 
-                if det.confidence >= min_conf:
-                    filtered_detections.append(det)
+                if detection.confidence >= min_conf:
+                    filtered_detections.append(detection)
 
             if not filtered_detections:
                 # If no detections pass the filter, assign -1 to all
