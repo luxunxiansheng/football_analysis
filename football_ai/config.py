@@ -1,7 +1,10 @@
 """
 Football AI Configuration System
 
-This module provides a comprehensive configuration system using dataclasses
+Thi    # ByteTrack Parameters - Extremely aggressive for football
+    track_threshold: float = 0.15  # Very low to catch objects early (was 0.25)
+    track_buffer: int = 120        # Very long buffer for occlusions (was 90)
+    match_threshold: float = 0.95  # Very high matching threshold (was 0.9)dule provides a comprehensive configuration system using dataclasses
 for type-safe, flexible, and well-documented configuration management.
 """
 
@@ -39,20 +42,20 @@ class ModelConfig:
 class TrackingConfig:
     """Configuration for object tracking parameters."""
 
-    # ByteTrack Parameters
-    track_threshold: float = 0.6
-    track_buffer: int = 30
-    match_threshold: float = 0.8
+    # ByteTrack Parameters - Much more aggressive for football
+    track_threshold: float = 0.25  # Much lower to catch objects early (was 0.4)
+    track_buffer: int = 90  # Much longer buffer for occlusions (was 60)
+    match_threshold: float = 0.9  # Higher matching threshold for stability (was 0.85)
 
-    # Tracking Behavior
-    min_track_length: int = 5
-    max_lost_frames: int = 10
-    track_smoothing_window: int = 3
+    # Tracking Behavior - More conservative about dropping tracks
+    min_track_length: int = 1  # Allow very short tracks initially (was 3)
+    max_lost_frames: int = 30  # Allow many more lost frames (was 20)
+    track_smoothing_window: int = 7  # More smoothing (was 5)
 
-    # Player-specific tracking
-    player_track_threshold: float = 0.5
-    ball_track_threshold: float = 0.3
-    referee_track_threshold: float = 0.4
+    # Player-specific tracking - Very lenient
+    player_track_threshold: float = 0.2  # Very low for players (was 0.3)
+    ball_track_threshold: float = 0.1  # Extremely low for ball (was 0.2)
+    referee_track_threshold: float = 0.2  # Lower for referees (was 0.3)
 
 
 @dataclass

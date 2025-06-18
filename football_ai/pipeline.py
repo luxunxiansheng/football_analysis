@@ -19,6 +19,7 @@ from .domain.interfaces import Processor
 # Import all processors
 from .detection.object_detection_processor import ObjectDetectionProcessor
 from .tracking.track_processor import TrackProcessor
+from .tracking.track_optimizer import TrackIDOptimizer
 from .motion.object_motion_processor import ObjectMotionProcessor
 from .motion.camera_motion_processor import CameraMotionProcessor
 from .transformation.field_transformation_processor import FieldTransformationProcessor
@@ -75,7 +76,18 @@ class FootballAnalysisPipeline:
         self.processors.append(
             ObjectDetectionProcessor(self.config.model.player_model_path)
         )
-        self.processors.append(TrackProcessor())
+        self.processors.append(
+            TrackProcessor(
+                track_activation_threshold=self.config.tracking.track_threshold,
+                lost_track_buffer=self.config.tracking.track_buffer,
+                minimum_matching_threshold=self.config.tracking.match_threshold,
+                frame_rate=30,  # Could be extracted from video metadata
+                minimum_consecutive_frames=1,
+                min_track_length=self.config.tracking.min_track_length,
+                max_merge_distance=150.0,  # Pixels - could be made configurable
+                max_merge_frames=self.config.tracking.max_lost_frames,
+            )
+        )
 
         # Motion and positioning
         self.processors.append(ObjectMotionProcessor())
