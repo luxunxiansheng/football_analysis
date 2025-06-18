@@ -4,7 +4,9 @@ import numpy as np
 from football_ai.detection.object_detection_processor import ObjectDetectionProcessor
 from football_ai.tracking.track_processor import TrackProcessor
 from football_ai.motion.object_motion_processor import ObjectMotionProcessor
-from football_ai.assignment.team_assignment_processor import TeamAssignmentProcessor
+from football_ai.assignment.team_assignment_processor import (
+    TeamAssignmentProcessor,
+)
 from football_ai.assignment.ball_assignment_processor import BallAssignmentProcessor
 from football_ai.domain.data_models import VideoData, FrameData
 
@@ -13,7 +15,13 @@ def test_ball_assignment_processor():
     video_path = os.path.abspath("input_videos/08fd33_4.mp4")
     model_path = os.path.abspath("models/detect/best.pt")
     detection_processor = ObjectDetectionProcessor(model_path)
-    track_processor = TrackProcessor()
+    track_processor = TrackProcessor(
+        track_activation_threshold=0.15,
+        lost_track_buffer=120,
+        minimum_matching_threshold=0.95,
+        frame_rate=30,
+        minimum_consecutive_frames=1,
+    )
     motion_processor = ObjectMotionProcessor()
     team_processor = TeamAssignmentProcessor()
     ball_processor = BallAssignmentProcessor()

@@ -23,7 +23,9 @@ from .tracking.track_optimizer import TrackIDOptimizer
 from .motion.object_motion_processor import ObjectMotionProcessor
 from .motion.camera_motion_processor import CameraMotionProcessor
 from .transformation.field_transformation_processor import FieldTransformationProcessor
-from .assignment.team_assignment_processor import TeamAssignmentProcessor
+from .assignment.team_assignment_processor import (
+    TeamAssignmentProcessor,
+)
 from .assignment.ball_assignment_processor import BallAssignmentProcessor
 from .analysis.speed_processor import SpeedProcessor
 from .rendering.renderer_processor import RendererProcessor

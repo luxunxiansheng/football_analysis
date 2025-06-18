@@ -9,7 +9,13 @@ def test_track_processor_with_supervision():
     video_path = os.path.abspath("input_videos/08fd33_4.mp4")
     model_path = os.path.abspath("models/detect/best.pt")
     detection_processor = ObjectDetectionProcessor(model_path)
-    track_processor = TrackProcessor()
+    track_processor = TrackProcessor(
+        track_activation_threshold=0.15,
+        lost_track_buffer=120,
+        minimum_matching_threshold=0.95,
+        frame_rate=30,
+        minimum_consecutive_frames=1,
+    )
 
     cap = cv2.VideoCapture(video_path)
     frames = []
