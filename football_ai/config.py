@@ -20,7 +20,7 @@ class ModelConfig:
 
     # YOLO Detection Model Configuration
     player_model_path: str = "models/detect/best.pt"
-    confidence_threshold: float = 0.5
+    confidence_threshold: float = 0.3
     iou_threshold: float = 0.45
     max_detections: int = 1000
     device: str = "auto"  # "auto", "cpu", "cuda", "mps"
