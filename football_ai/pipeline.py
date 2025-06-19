@@ -80,14 +80,24 @@ class FootballAnalysisPipeline:
         )
         self.processors.append(
             TrackProcessor(
-                track_activation_threshold=self.config.tracking.track_threshold,
-                lost_track_buffer=self.config.tracking.track_buffer,
-                minimum_matching_threshold=self.config.tracking.match_threshold,
-                frame_rate=30,  # Could be extracted from video metadata
-                minimum_consecutive_frames=1,
+                track_activation_threshold=self.config.tracking.track_activation_threshold,
+                lost_track_buffer=self.config.tracking.lost_track_buffer,
+                minimum_matching_threshold=self.config.tracking.minimum_matching_threshold,
+                frame_rate=self.config.tracking.frame_rate,
+                minimum_consecutive_frames=self.config.tracking.minimum_consecutive_frames,
                 min_track_length=self.config.tracking.min_track_length,
-                max_merge_distance=150.0,  # Pixels - could be made configurable
-                max_merge_frames=self.config.tracking.max_lost_frames,
+                max_merge_distance=self.config.tracking.max_merge_distance,
+                max_merge_frames=self.config.tracking.max_merge_frames,
+                # Enhanced filtering parameters
+                enable_advanced_filtering=self.config.tracking.enable_advanced_filtering,
+                spatial_validation=self.config.tracking.spatial_validation,
+                temporal_validation=self.config.tracking.temporal_validation,
+                size_validation=self.config.tracking.size_validation,
+                adaptive_thresholds=self.config.tracking.adaptive_thresholds,
+                max_speed_threshold=self.config.tracking.max_speed_threshold,
+                min_size_threshold=self.config.tracking.min_size_threshold,
+                max_size_threshold=self.config.tracking.max_size_threshold,
+                stability_window=self.config.tracking.stability_window,
             )
         )
 

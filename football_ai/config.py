@@ -42,20 +42,46 @@ class ModelConfig:
 class TrackingConfig:
     """Configuration for object tracking parameters."""
 
-    # ByteTrack Parameters - Much more aggressive for football
-    track_threshold: float = 0.25  # Much lower to catch objects early (was 0.4)
-    track_buffer: int = 90  # Much longer buffer for occlusions (was 60)
-    match_threshold: float = 0.9  # Higher matching threshold for stability (was 0.85)
+    # Optimized ByteTrack Parameters for Football Analysis
+    # Based on evaluation results that reduced fragmentation from 7.5x to 1.0x
+    track_activation_threshold: float = (
+        0.4  # Increased from 0.15 to reduce false tracks
+    )
+    lost_track_buffer: int = 600  # Increased from 120 for better occlusion handling
+    minimum_matching_threshold: float = (
+        0.75  # Reduced from 0.95 for enhanced continuity
+    )
+    frame_rate: int = 30  # Standard football video frame rate
+    minimum_consecutive_frames: int = 1  # Minimum frames to confirm track
+    min_track_length: int = 50  # Increased from 5 to filter short fragments
+    max_merge_distance: float = 250.0  # Increased from 100 for stronger merging
+    max_merge_frames: int = 100  # Increased from 25 for extended merge window
 
-    # Tracking Behavior - More conservative about dropping tracks
-    min_track_length: int = 1  # Allow very short tracks initially (was 3)
-    max_lost_frames: int = 30  # Allow many more lost frames (was 20)
-    track_smoothing_window: int = 7  # More smoothing (was 5)
+    # Enhanced Filtering Parameters
+    enable_advanced_filtering: bool = True  # Enable advanced filtering capabilities
+    spatial_validation: bool = True  # Enable spatial validation
+    temporal_validation: bool = True  # Enable temporal validation
+    size_validation: bool = True  # Enable size validation
+    adaptive_thresholds: bool = True  # Enable adaptive confidence thresholds
+    max_speed_threshold: float = 15.0  # Maximum realistic speed in m/s
+    min_size_threshold: float = 0.0001  # Minimum detection size relative to frame
+    max_size_threshold: float = 0.1  # Maximum detection size relative to frame
+    stability_window: int = 5  # Number of frames for stability checks
 
-    # Player-specific tracking - Very lenient
-    player_track_threshold: float = 0.2  # Very low for players (was 0.3)
-    ball_track_threshold: float = 0.1  # Extremely low for ball (was 0.2)
-    referee_track_threshold: float = 0.2  # Lower for referees (was 0.3)
+    # Legacy parameters for backward compatibility
+    track_threshold: float = 0.4  # Maps to track_activation_threshold
+    track_buffer: int = 600  # Maps to lost_track_buffer
+    match_threshold: float = 0.75  # Maps to minimum_matching_threshold
+
+    # Tracking Behavior - Optimized for stability
+    max_lost_frames: int = 600  # Aligned with lost_track_buffer
+    track_smoothing_window: int = 7  # Smoothing window for track positions
+
+    # Object-specific tracking thresholds (used in TrackProcessor)
+    player_track_threshold: float = 0.4  # Higher confidence for players
+    ball_track_threshold: float = 0.2  # Lower for ball (harder to detect)
+    referee_track_threshold: float = 0.35  # Medium for referees
+    goalkeeper_track_threshold: float = 0.35  # Medium for goalkeepers
 
 
 @dataclass
