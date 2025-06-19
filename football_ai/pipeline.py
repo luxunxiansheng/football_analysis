@@ -19,7 +19,6 @@ from .domain.interfaces import Processor
 # Import all processors
 from .detection.object_detection_processor import ObjectDetectionProcessor
 from .tracking.track_processor import TrackProcessor
-from .tracking.track_optimizer import TrackIDOptimizer
 from .motion.object_motion_processor import ObjectMotionProcessor
 from .motion.camera_motion_processor import CameraMotionProcessor
 from .transformation.field_transformation_processor import FieldTransformationProcessor
