@@ -10,4 +10,5 @@ scikit-learn
 supervision
 torchvision
 tqdm
+transformers
 ultralytics

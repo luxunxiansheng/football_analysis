@@ -102,8 +102,7 @@ class FootballAnalysisPipeline:
 
         # Motion and positioning
         self.processors.append(ObjectMotionProcessor())
-        if self.config.camera.enable_camera_tracking:
-            self.processors.append(CameraMotionProcessor())
+        self.processors.append(CameraMotionProcessor())
 
         # Field transformation
         self.processors.append(

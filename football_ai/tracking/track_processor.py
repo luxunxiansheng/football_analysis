@@ -363,13 +363,13 @@ class TrackProcessor(Processor):
     def process(self, data: VideoData) -> VideoData:
         """Process video data with enhanced tracking capabilities."""
         # Use progress bar for tracking
-        progress_bar = tqdm(data.frames, desc="Enhanced object tracking", unit="frames")
+        frames_with_progress_bar = tqdm(data.frames, desc="Enhanced object tracking", unit="frames")
 
         # Reset tracking state
         self.frame_count = 0
         self.track_history.clear()
 
-        for frame_data in progress_bar:
+        for frame_data in frames_with_progress_bar:
             detections = frame_data.detections or []
             self.frame_count += 1
 
@@ -448,7 +448,7 @@ class TrackProcessor(Processor):
                         detection.metadata = {}
                     detection.metadata["track_id"] = -1
 
-        progress_bar.close()
+        frames_with_progress_bar.close()
 
         # Post-process track IDs to optimize continuity and reduce fragmentation
         self.logger.info("Optimizing track IDs...")
