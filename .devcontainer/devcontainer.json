@@ -36,7 +36,8 @@
 				"marp-team.marp-vscode",
 				"ms-python.black-formatter",
 				"mhutchie.git-graph",
-				"RSIP-Vision.nvidia-smi-plus"
+				"RSIP-Vision.nvidia-smi-plus",
+				"ms-azuretools.vscode-containers"
 			]
 		}
 	},

@@ -25,6 +25,9 @@ class ModelConfig:
     max_detections: int = 1000
     device: str = "auto"  # "auto", "cpu", "cuda", "mps"
 
+    # Team Assignment Model Configuration
+    team_model_path: str = "models/embed/siglip-base-patch16-224"
+
     # YOLO Keypoint Model Configuration
     field_model_path: str = "models/pose/best.pt"
     keypoint_confidence_threshold: float = 0.5

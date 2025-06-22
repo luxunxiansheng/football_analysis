@@ -4,6 +4,7 @@ matplotlib
 numpy
 opencv-python
 pandas
+sentencepiece
 seaborn
 scipy
 scikit-learn
@@ -12,3 +13,4 @@ torchvision
 tqdm
 transformers
 ultralytics
+umap-learn[plot]

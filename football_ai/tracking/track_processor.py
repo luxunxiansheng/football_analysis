@@ -286,74 +286,72 @@ class TrackProcessor(Processor):
 
         return True
 
-    def _filter_detections_advanced(
-        self, detections: List[Detection]
-    ) -> List[Detection]:
-        """Apply advanced filtering logic to detections."""
-        if not self.enable_advanced_filtering:
-            # Fall back to basic filtering
-            return self._filter_detections_basic(detections)
-
+    def _filter_detections(self, detections: List[Detection]) -> List[Detection]:
+        """Apply unified filtering logic to detections with configurable complexity."""
         filtered_detections = []
 
-        # Calculate frame statistics for adaptive thresholds
-        if self.frame_dimensions is None and detections:
+        # Calculate frame statistics for adaptive thresholds (if advanced filtering enabled)
+        if (
+            self.enable_advanced_filtering
+            and self.frame_dimensions is None
+            and detections
+        ):
             # Estimate frame dimensions from detections (rough approximation)
             max_x = max(det.bbox.x2 for det in detections)
             max_y = max(det.bbox.y2 for det in detections)
             self.frame_dimensions = (max_y, max_x)
 
-        total_detection_area = sum(
-            self._get_bbox_properties(det.bbox)["area"] for det in detections
-        )
-        frame_area = (
-            self.frame_dimensions[0] * self.frame_dimensions[1]
-            if self.frame_dimensions
-            else 1
-        )
-
-        frame_stats = {
-            "detection_density": total_detection_area / frame_area,
-            "detection_count": len(detections),
-        }
+        frame_stats = {}
+        if self.enable_advanced_filtering:
+            total_detection_area = sum(
+                self._get_bbox_properties(det.bbox)["area"] for det in detections
+            )
+            frame_area = (
+                self.frame_dimensions[0] * self.frame_dimensions[1]
+                if self.frame_dimensions
+                else 1
+            )
+            frame_stats = {
+                "detection_density": total_detection_area / frame_area,
+                "detection_count": len(detections),
+            }
 
         for detection in detections:
-            # Size validation
-            if not self._validate_detection_size(detection):
-                continue
+            # Advanced validations (only if enabled)
+            if self.enable_advanced_filtering:
+                # Size validation
+                if not self._validate_detection_size(detection):
+                    continue
 
-            # Position validation
-            if not self._validate_detection_position(detection):
-                continue
+                # Position validation
+                if not self._validate_detection_position(detection):
+                    continue
 
-            # Calculate frame-specific stats for this detection
-            bbox_props = self._get_bbox_properties(detection.bbox)
-            size_ratio = bbox_props["area"] / frame_area
-            frame_stats["size_ratio"] = size_ratio
+                # Calculate frame-specific stats for this detection
+                bbox_props = self._get_bbox_properties(detection.bbox)
+                frame_area = (
+                    self.frame_dimensions[0] * self.frame_dimensions[1]
+                    if self.frame_dimensions
+                    else 1
+                )
+                size_ratio = bbox_props["area"] / frame_area
+                frame_stats["size_ratio"] = size_ratio
 
-            # Adaptive confidence threshold
-            min_conf = self._get_adaptive_confidence_threshold(detection, frame_stats)
-
-            if detection.confidence >= min_conf:
-                filtered_detections.append(detection)
-
-        return filtered_detections
-
-    def _filter_detections_basic(self, detections: List[Detection]) -> List[Detection]:
-        """Apply basic filtering logic (original implementation)."""
-        filtered_detections = []
-        for detection in detections:
-            min_conf = 0.3  # Default minimum confidence
-
-            # Adjust confidence thresholds by object type
-            if detection.object_type == "player":
-                min_conf = 0.4  # Higher for players (most important)
-            elif detection.object_type == "ball":
-                min_conf = 0.2  # Lower for ball (harder to detect)
-            elif detection.object_type == "referee":
-                min_conf = 0.35  # Medium for referees
-            elif detection.object_type == "goalkeeper":
-                min_conf = 0.35  # Medium for goalkeepers
+                # Use adaptive confidence threshold
+                min_conf = self._get_adaptive_confidence_threshold(
+                    detection, frame_stats
+                )
+            else:
+                # Use simple confidence thresholds by object type
+                min_conf = 0.3  # Default minimum confidence
+                if detection.object_type == "player":
+                    min_conf = 0.4  # Higher for players (most important)
+                elif detection.object_type == "ball":
+                    min_conf = 0.2  # Lower for ball (harder to detect)
+                elif detection.object_type == "referee":
+                    min_conf = 0.35  # Medium for referees
+                elif detection.object_type == "goalkeeper":
+                    min_conf = 0.35  # Medium for goalkeepers
 
             if detection.confidence >= min_conf:
                 filtered_detections.append(detection)
@@ -363,7 +361,9 @@ class TrackProcessor(Processor):
     def process(self, data: VideoData) -> VideoData:
         """Process video data with enhanced tracking capabilities."""
         # Use progress bar for tracking
-        frames_with_progress_bar = tqdm(data.frames, desc="Enhanced object tracking", unit="frames")
+        frames_with_progress_bar = tqdm(
+            data.frames, desc="Enhanced object tracking", unit="frames"
+        )
 
         # Reset tracking state
         self.frame_count = 0
@@ -376,11 +376,8 @@ class TrackProcessor(Processor):
             if not detections:
                 continue
 
-            # Apply advanced or basic filtering
-            if self.enable_advanced_filtering:
-                filtered_detections = self._filter_detections_advanced(detections)
-            else:
-                filtered_detections = self._filter_detections_basic(detections)
+            # Apply unified filtering logic
+            filtered_detections = self._filter_detections(detections)
 
             if not filtered_detections:
                 # If no detections pass the filter, assign -1 to all

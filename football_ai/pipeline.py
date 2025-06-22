@@ -22,9 +22,8 @@ from .tracking.track_processor import TrackProcessor
 from .motion.object_motion_processor import ObjectMotionProcessor
 from .motion.camera_motion_processor import CameraMotionProcessor
 from .transformation.field_transformation_processor import FieldTransformationProcessor
-from .assignment.team_assignment_processor import (
-    TeamAssignmentProcessor,
-)
+from .assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor as TeamAssignmentProcessor
+
 from .assignment.ball_assignment_processor import BallAssignmentProcessor
 from .analysis.speed_processor import SpeedProcessor
 from .rendering.renderer_processor import RendererProcessor
@@ -113,7 +112,7 @@ class FootballAnalysisPipeline:
         )
 
         # Team and ball assignment
-        self.processors.append(TeamAssignmentProcessor())
+        self.processors.append(TeamAssignmentProcessor(self.config.model.team_model_path))
         self.processors.append(
             BallAssignmentProcessor(
                 max_distance=self.config.possession.possession_distance
