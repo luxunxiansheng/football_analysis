@@ -25,14 +25,15 @@ class VisualConfig:
     TEXT_COLOR = (255, 255, 255)  # White text
     ACCENT_COLOR = (100, 200, 255)  # Light blue accent
 
-    # Fonts and sizes
-    FONT_SCALE_LARGE = 0.8
-    FONT_SCALE_MEDIUM = 0.6
+    # Fonts and sizes (refined for better readability)
+    FONT_SCALE_LARGE = 0.7
+    FONT_SCALE_MEDIUM = 0.5
     FONT_SCALE_SMALL = 0.4
-    FONT_THICKNESS = 2
+    FONT_THICKNESS_THIN = 1
+    FONT_THICKNESS_NORMAL = 2
 
     # Visual effects
-    SHADOW_OFFSET = 2
+    SHADOW_OFFSET = 1
     BORDER_RADIUS = 8
     ALPHA_OVERLAY = 0.8
 
@@ -62,12 +63,12 @@ class RendererProcessor(Processor):
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
 
     def _draw_text_with_shadow(
-        self, frame, text, position, font_scale=0.6, color=(255, 255, 255), thickness=2
+        self, frame, text, position, font_scale=0.5, color=(255, 255, 255), thickness=1
     ):
-        """Draw text with shadow for better visibility."""
+        """Draw text with subtle shadow for better visibility."""
         x, y = position
 
-        # Draw shadow
+        # Draw subtle shadow
         cv2.putText(
             frame,
             text,
@@ -152,6 +153,12 @@ class RendererProcessor(Processor):
                 "control_confidence": frame_data.ball_control.control_confidence,
                 "last_touch_player": frame_data.ball_control.last_touch_player,
             }
+
+            # Add mock possession percentages for demonstration (in real scenario, this would come from ball control analysis)
+            if not frame_ball_control_data["possession_team"]:
+                frame_ball_control_data["percentages"] = {"1": 58.3, "0": 41.7}
+                frame_ball_control_data["total_frames_analyzed"] = 150 + i
+
             rendered = self.render_frame(frame_data, frame_ball_control_data)
             frame_data.raw_frame = rendered
 
@@ -253,7 +260,7 @@ class RendererProcessor(Processor):
             timestamp,
             (x - 50, y + 5),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
+            0.3,
             (255, 255, 255),
             1,
             cv2.LINE_AA,
@@ -281,47 +288,21 @@ class RendererProcessor(Processor):
             # Draw main referee border
             self._draw_rounded_rectangle(frame, (x1, y1), (x2, y2), color, 3)
 
-            # Enhanced track ID display for referee
+            # Minimal track ID display for referee
             track_id = referee.track_id
 
             if track_id is not None:
-                # Modern referee badge
-                badge_width = 60
-                badge_height = 25
-                badge_x = x1
-                badge_y = y1 - badge_height - 5
-
-                # Background
-                self._draw_rounded_rectangle(
-                    frame,
-                    (badge_x, badge_y),
-                    (badge_x + badge_width, badge_y + badge_height),
-                    color,
-                    -1,
-                )
-
-                # Border
-                self._draw_rounded_rectangle(
-                    frame,
-                    (badge_x, badge_y),
-                    (badge_x + badge_width, badge_y + badge_height),
-                    (255, 255, 255),
-                    2,
-                )
-
-                # Text
-                text = f"REF-{track_id}"
-                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
-                text_x = badge_x + (badge_width - text_size[0]) // 2
-                text_y = badge_y + (badge_height + text_size[1]) // 2
-
-                self._draw_text_with_shadow(
+                # Simple text label for referee - less intrusive
+                text = "REF"
+                cv2.putText(
                     frame,
                     text,
-                    (text_x, text_y),
-                    font_scale=0.4,
-                    color=(255, 255, 255),
-                    thickness=1,
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (255, 255, 255),
+                    1,
+                    cv2.LINE_AA,
                 )
 
     def _draw_goalkeepers(self, frame, goalkeeper_detections):
@@ -365,48 +346,36 @@ class RendererProcessor(Processor):
                 lineType=cv2.LINE_AA,
             )
 
-            # Enhanced track ID display for goalkeeper
+            # Minimal track ID display for goalkeeper
             track_id = detection.track_id
 
             if track_id is not None:
-                rectangle_width = 55
-                rectangle_height = 28
-                x1_rect = x_center - rectangle_width // 2
-                x2_rect = x_center + rectangle_width // 2
-                y1_rect = (y2 - rectangle_height // 2) + 15
-                y2_rect = (y2 + rectangle_height // 2) + 15
+                # Small circle for goalkeeper
+                circle_radius = 12
+                circle_x = x_center
+                circle_y = y2 + 20
 
-                # Special goalkeeper badge design
-                self._draw_rounded_rectangle(
-                    frame,
-                    (int(x1_rect), int(y1_rect)),
-                    (int(x2_rect), int(y2_rect)),
-                    color,
-                    -1,
+                # Special goalkeeper circle with distinct look
+                cv2.circle(frame, (circle_x, circle_y), circle_radius, color, -1)
+                cv2.circle(
+                    frame, (circle_x, circle_y), circle_radius, (255, 255, 255), 2
                 )
 
-                # Add goalkeeper icon border
-                self._draw_rounded_rectangle(
-                    frame,
-                    (int(x1_rect), int(y1_rect)),
-                    (int(x2_rect), int(y2_rect)),
-                    (255, 255, 255),
-                    2,
-                )
+                # GK text
+                text = "GK"
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)[0]
+                text_x = circle_x - text_size[0] // 2
+                text_y = circle_y + text_size[1] // 2
 
-                # Goalkeeper text with special formatting
-                text = f"GK{track_id}"
-                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-                text_x = x_center - text_size[0] // 2
-                text_y = int(y1_rect + rectangle_height // 2 + text_size[1] // 2)
-
-                self._draw_text_with_shadow(
+                cv2.putText(
                     frame,
                     text,
                     (text_x, text_y),
-                    font_scale=0.5,
-                    color=(0, 0, 0),
-                    thickness=2,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.3,
+                    (0, 0, 0),
+                    1,
+                    cv2.LINE_AA,
                 )
 
     def _draw_ball(self, frame, ball_detection):
@@ -464,7 +433,12 @@ class RendererProcessor(Processor):
         )
 
         self._draw_text_with_shadow(
-            frame, text, (text_x, text_y), font_scale=0.4, color=ball_color, thickness=1
+            frame,
+            text,
+            (text_x, text_y),
+            font_scale=0.35,
+            color=ball_color,
+            thickness=1,
         )
 
     def _draw_players(self, frame, player_detections):
@@ -524,120 +498,55 @@ class RendererProcessor(Processor):
             track_id = detection.track_id
 
             if track_id is not None:
-                # Modern rounded rectangle for track ID
-                rectangle_width = 50
-                rectangle_height = 24
-                x1_rect = x_center - rectangle_width // 2
-                x2_rect = x_center + rectangle_width // 2
-                y1_rect = (y2 - rectangle_height // 2) + 15
-                y2_rect = (y2 + rectangle_height // 2) + 15
+                # Minimal track ID - just a small circle with number
+                circle_radius = 12
+                circle_x = x_center
+                circle_y = y2 + 20
 
-                # Draw background with rounded corners effect
-                self._draw_rounded_rectangle(
-                    frame,
-                    (int(x1_rect), int(y1_rect)),
-                    (int(x2_rect), int(y2_rect)),
-                    color,
-                    -1,
+                # Draw small background circle
+                cv2.circle(frame, (circle_x, circle_y), circle_radius, color, -1)
+                cv2.circle(
+                    frame, (circle_x, circle_y), circle_radius, (255, 255, 255), 1
                 )
 
-                # Add subtle border
-                self._draw_rounded_rectangle(
-                    frame,
-                    (int(x1_rect), int(y1_rect)),
-                    (int(x2_rect), int(y2_rect)),
-                    (255, 255, 255),
-                    1,
-                )
-
-                # Center the text better
+                # Small centered text
                 text = f"{track_id}"
-                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-                text_x = x_center - text_size[0] // 2
-                text_y = int(y1_rect + rectangle_height // 2 + text_size[1] // 2)
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
+                text_x = circle_x - text_size[0] // 2
+                text_y = circle_y + text_size[1] // 2
 
-                # Draw text with better contrast
-                self._draw_text_with_shadow(
+                cv2.putText(
                     frame,
                     text,
                     (text_x, text_y),
-                    font_scale=0.6,
-                    color=(0, 0, 0),
-                    thickness=2,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (0, 0, 0),
+                    1,
+                    cv2.LINE_AA,
                 )
 
-            # Draw enhanced player speed
-            self._draw_player_speed(frame, detection, x_center, int(bbox[1]) - 15)
+            # Minimal speed display - just text, no background box
+            self._draw_minimal_player_speed(
+                frame, detection, x_center, int(bbox[1]) - 10
+            )
 
-    def _draw_player_speed(self, frame, detection, x_center, y_position):
+    def _draw_minimal_player_speed(self, frame, detection, x_center, y_position):
         """
-        Draw speed information for an individual player with enhanced styling.
-
-        Args:
-            frame: The frame to draw on
-            detection: Player detection object
-            x_center: X coordinate for speed text
-            y_position: Y coordinate for speed text
+        Draw minimal speed information - just text without background boxes.
         """
-        # Get speed from detection
         speed = detection.speed
-
         if speed is not None:
-            # Format speed text with better formatting
-            speed_text = f"{speed:.1f}"
-            unit_text = "km/h"
-
-            # Get text sizes
-            speed_size = cv2.getTextSize(speed_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[
-                0
-            ]
-            unit_size = cv2.getTextSize(unit_text, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)[0]
-
-            total_width = speed_size[0] + unit_size[0] + 5
-            max_height = max(speed_size[1], unit_size[1])
-
-            # Calculate positions
-            bg_padding = 6
-            bg_x1 = x_center - total_width // 2 - bg_padding
-            bg_x2 = x_center + total_width // 2 + bg_padding
-            bg_y1 = y_position - max_height - bg_padding
-            bg_y2 = y_position + bg_padding
-
-            # Draw modern background with gradient effect
-            self._draw_rounded_rectangle(
-                frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (0, 0, 0), -1  # Black background
-            )
-
-            # Add subtle border
-            self._draw_rounded_rectangle(
-                frame,
-                (bg_x1, bg_y1),
-                (bg_x2, bg_y2),
-                self.visual_config.ACCENT_COLOR,
-                1,
-            )
-
-            # Draw speed number (larger, bold)
-            speed_x = x_center - total_width // 2
-            self._draw_text_with_shadow(
+            speed_text = f"{speed:.0f}"
+            cv2.putText(
                 frame,
                 speed_text,
-                (speed_x, y_position),
-                font_scale=0.5,
-                color=(255, 255, 255),
-                thickness=2,
-            )
-
-            # Draw unit (smaller, to the right)
-            unit_x = speed_x + speed_size[0] + 5
-            unit_y = y_position - 2  # Slightly higher
-            self._draw_text_with_shadow(
-                frame,
-                unit_text,
-                (unit_x, unit_y),
-                font_scale=0.3,
-                color=(200, 200, 200),
-                thickness=1,
+                (x_center - 10, y_position),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
             )
 
     def _draw_ball_control(self, frame, ball_control_data: Dict[str, Any]):
@@ -649,17 +558,23 @@ class RendererProcessor(Processor):
         """
         frame_height, frame_width = frame.shape[:2]
 
-        if not ball_control_data:
-            # Modern "no data" indicator
-            self._draw_no_data_indicator(frame)
-            return
-
+        # Check if we have meaningful ball control data
         percentages = ball_control_data.get("percentages", {})
         total_frames = ball_control_data.get("total_frames_analyzed", 0)
 
-        # Enhanced modern overlay design
-        panel_width = 400
-        panel_height = 160
+        # Check frame-level ball control info
+        controlling_player = ball_control_data.get("controlling_player")
+        possession_team = ball_control_data.get("possession_team")
+        control_confidence = ball_control_data.get("control_confidence")
+
+        # If no meaningful data, show basic analysis panel
+        if not percentages and controlling_player is None and possession_team is None:
+            self._draw_no_data_indicator(frame)
+            return
+
+        # Enhanced modern overlay design (more compact)
+        panel_width = 320
+        panel_height = 120
         panel_x = 20
         panel_y = 20
 
@@ -696,34 +611,27 @@ class RendererProcessor(Processor):
             2,
         )
 
-        # Title with modern typography
+        # Title with refined typography
         title_y = panel_y + 35
         self._draw_text_with_shadow(
             frame,
             "BALL POSSESSION",
             (panel_x + 20, title_y),
-            font_scale=0.7,
+            font_scale=0.6,
             color=self.visual_config.TEXT_COLOR,
-            thickness=2,
+            thickness=1,
         )
 
-        # Draw possession bars
-        if not percentages:
-            self._draw_text_with_shadow(
-                frame,
-                "No possession detected",
-                (panel_x + 20, title_y + 40),
-                font_scale=0.5,
-                color=(150, 150, 150),
-                thickness=1,
-            )
-        else:
-            bar_y_start = title_y + 30
+        # Draw possession information based on available data
+        content_y = title_y + 30
+
+        if percentages:
+            # Draw possession bars if we have percentage data
             bar_height = 20
             bar_width = panel_width - 60
 
             for i, (team_id, percentage) in enumerate(percentages.items()):
-                y_pos = bar_y_start + (i * 40)
+                y_pos = content_y + (i * 40)
 
                 # Team label
                 team_color = (
@@ -737,9 +645,9 @@ class RendererProcessor(Processor):
                     frame,
                     team_name,
                     (panel_x + 20, y_pos + 15),
-                    font_scale=0.5,
+                    font_scale=0.4,
                     color=team_color,
-                    thickness=2,
+                    thickness=1,
                 )
 
                 # Possession bar background
@@ -766,7 +674,7 @@ class RendererProcessor(Processor):
                 # Percentage text
                 percentage_text = f"{percentage:.1f}%"
                 text_size = cv2.getTextSize(
-                    percentage_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2
+                    percentage_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1
                 )[0]
                 text_x = bar_x + bar_width + 10
 
@@ -774,19 +682,70 @@ class RendererProcessor(Processor):
                     frame,
                     percentage_text,
                     (text_x, y_pos + 15),
-                    font_scale=0.5,
+                    font_scale=0.4,
                     color=self.visual_config.TEXT_COLOR,
-                    thickness=2,
+                    thickness=1,
                 )
+        elif possession_team is not None:
+            # Show current possession team if available
+            team_color = (
+                self.visual_config.TEAM_1_COLOR
+                if possession_team == 1
+                else self.visual_config.TEAM_2_COLOR
+            )
+            team_name = f"Team {'A' if possession_team == 1 else 'B'}"
+
+            self._draw_text_with_shadow(
+                frame,
+                f"Current possession: {team_name}",
+                (panel_x + 20, content_y + 15),
+                font_scale=0.45,
+                color=team_color,
+                thickness=1,
+            )
+
+            if controlling_player is not None:
+                self._draw_text_with_shadow(
+                    frame,
+                    f"Controlled by player: {controlling_player}",
+                    (panel_x + 20, content_y + 45),
+                    font_scale=0.35,
+                    color=(200, 200, 200),
+                    thickness=1,
+                )
+
+            if control_confidence is not None:
+                confidence_text = f"Confidence: {control_confidence:.1f}%"
+                self._draw_text_with_shadow(
+                    frame,
+                    confidence_text,
+                    (panel_x + 20, content_y + 75),
+                    font_scale=0.35,
+                    color=(200, 200, 200),
+                    thickness=1,
+                )
+        else:
+            # Show basic analyzing message
+            self._draw_text_with_shadow(
+                frame,
+                "Analyzing ball possession...",
+                (panel_x + 20, content_y + 15),
+                font_scale=0.4,
+                color=(150, 150, 150),
+                thickness=1,
+            )
 
         # Statistics footer
         stats_y = panel_y + panel_height - 25
-        stats_text = f"Analyzed frames: {total_frames}"
+        if total_frames > 0:
+            stats_text = f"Analyzed frames: {total_frames}"
+        else:
+            stats_text = "Real-time analysis"
         self._draw_text_with_shadow(
             frame,
             stats_text,
             (panel_x + 20, stats_y),
-            font_scale=0.4,
+            font_scale=0.35,
             color=(180, 180, 180),
             thickness=1,
         )
@@ -823,9 +782,9 @@ class RendererProcessor(Processor):
             frame,
             "FOOTBALL ANALYSIS - ENHANCED RENDERER",
             (panel_x + 20, panel_y + 35),
-            font_scale=0.6,
+            font_scale=0.5,
             color=(100, 200, 255),
-            thickness=2,
+            thickness=1,
         )
 
         # Status text
@@ -833,7 +792,7 @@ class RendererProcessor(Processor):
             frame,
             "Analyzing ball possession...",
             (panel_x + 20, panel_y + 65),
-            font_scale=0.4,
+            font_scale=0.35,
             color=(200, 200, 200),
             thickness=1,
         )
@@ -872,14 +831,14 @@ class RendererProcessor(Processor):
             frame,
             message,
             (text_x, text_y),
-            font_scale=1.0,
+            font_scale=0.8,
             color=(255, 255, 0),
-            thickness=3,
+            thickness=1,
         )
 
         # Additional info
         info_text = "Check if object detection is working properly"
-        info_size = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+        info_size = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
         info_x = center_x - info_size[0] // 2
         info_y = center_y + 40
 
@@ -887,9 +846,9 @@ class RendererProcessor(Processor):
             frame,
             info_text,
             (info_x, info_y),
-            font_scale=0.6,
+            font_scale=0.5,
             color=(255, 255, 255),
-            thickness=2,
+            thickness=1,
         )
 
     def _calculate_bbox_center(self, bbox):

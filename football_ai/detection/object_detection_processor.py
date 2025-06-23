@@ -58,6 +58,8 @@ class ObjectDetectionProcessor(Processor):
                 y2=float(box[3]),
                 confidence=float(conf),
             )
-            detection = Detection(bbox=bbox, object_type=object_type)
+            detection = Detection(
+                bbox=bbox, object_type=object_type, confidence=float(conf)
+            )
             detections.append(detection)
         return detections
