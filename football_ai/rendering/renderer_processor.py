@@ -10,6 +10,33 @@ from football_ai.domain.interfaces import Processor
 from football_ai.domain.data_models import VideoData, FrameData, ObjectType
 
 
+class VisualConfig:
+    """Enhanced visual configuration for beautiful rendering."""
+
+    # Team colors (more vibrant and football-like)
+    TEAM_1_COLOR = (20, 147, 255)  # Bright orange
+    TEAM_2_COLOR = (255, 191, 0)  # Bright blue
+    GOALKEEPER_COLOR = (0, 255, 0)  # Bright green
+    REFEREE_COLOR = (50, 50, 50)  # Dark gray
+    BALL_COLOR = (0, 100, 255)  # Red-orange
+
+    # UI colors
+    BACKGROUND_COLOR = (30, 30, 30)  # Dark background
+    TEXT_COLOR = (255, 255, 255)  # White text
+    ACCENT_COLOR = (100, 200, 255)  # Light blue accent
+
+    # Fonts and sizes
+    FONT_SCALE_LARGE = 0.8
+    FONT_SCALE_MEDIUM = 0.6
+    FONT_SCALE_SMALL = 0.4
+    FONT_THICKNESS = 2
+
+    # Visual effects
+    SHADOW_OFFSET = 2
+    BORDER_RADIUS = 8
+    ALPHA_OVERLAY = 0.8
+
+
 class RendererProcessor(Processor):
     def __init__(
         self, output_path: str, render_config: Optional[Dict[str, Any]] = None
@@ -21,6 +48,82 @@ class RendererProcessor(Processor):
         """
         self.output_path = output_path
         self.render_config = render_config or {}
+        self.visual_config = VisualConfig()
+
+    def _draw_rounded_rectangle(self, frame, pt1, pt2, color, thickness=-1, radius=8):
+        """Draw a rounded rectangle for modern UI elements."""
+        x1, y1 = pt1
+        x2, y2 = pt2
+
+        # For filled rectangles, just use regular rectangles for simplicity
+        if thickness == -1:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, -1)
+        else:
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+
+    def _draw_text_with_shadow(
+        self, frame, text, position, font_scale=0.6, color=(255, 255, 255), thickness=2
+    ):
+        """Draw text with shadow for better visibility."""
+        x, y = position
+
+        # Draw shadow
+        cv2.putText(
+            frame,
+            text,
+            (
+                x + self.visual_config.SHADOW_OFFSET,
+                y + self.visual_config.SHADOW_OFFSET,
+            ),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            (0, 0, 0),
+            thickness + 1,
+            cv2.LINE_AA,
+        )
+
+        # Draw main text
+        cv2.putText(
+            frame,
+            text,
+            (x, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            color,
+            thickness,
+            cv2.LINE_AA,
+        )
+
+    def _create_gradient_overlay(
+        self, frame, start_color, end_color, position, size, vertical=True
+    ):
+        """Create a gradient overlay for modern UI elements."""
+        x, y = position
+        w, h = size
+
+        overlay = np.zeros_like(frame[y : y + h, x : x + w])
+
+        if vertical:
+            for i in range(h):
+                alpha = i / h
+                color = [
+                    int(start_color[j] * (1 - alpha) + end_color[j] * alpha)
+                    for j in range(3)
+                ]
+                overlay[i, :] = color
+        else:
+            for i in range(w):
+                alpha = i / w
+                color = [
+                    int(start_color[j] * (1 - alpha) + end_color[j] * alpha)
+                    for j in range(3)
+                ]
+                overlay[:, i] = color
+
+        # Blend with original frame
+        frame[y : y + h, x : x + w] = cv2.addWeighted(
+            frame[y : y + h, x : x + w], 0.3, overlay, 0.7, 0
+        )
 
     def process(self, video_data: VideoData) -> VideoData:
         """
@@ -36,11 +139,6 @@ class RendererProcessor(Processor):
         # Get ball control data from video custom data (fallback)
         video_ball_control_data = (
             video_data.custom.get("ball_control", {}) if video_data.custom else {}
-        )
-
-        # Debug: Check what video-level data we have
-        print(
-            f"DEBUG Renderer: Video-level ball control data: {video_ball_control_data}"
         )
 
         # Store rendered frames back in the original video_data object
@@ -79,13 +177,15 @@ class RendererProcessor(Processor):
             else np.array(frame_data.raw_frame)
         )
         detections = frame_data.detections or []
+
         # Filter detections by object type
         player_detections = []
         referee_detections = []
         goalkeeper_detections = []
         ball_detection = None
+
         for detection in detections:
-            if detection.object_type in [ObjectType.PLAYER]:
+            if detection.object_type == ObjectType.PLAYER:
                 player_detections.append(detection)
             elif detection.object_type == ObjectType.GOALKEEPER:
                 goalkeeper_detections.append(detection)
@@ -97,209 +197,381 @@ class RendererProcessor(Processor):
 
         # Optionally extract overlays from frame_analysis if needed
         annotated_frame = frame.copy()
+
+        # Check if we have any detections at all
+        total_detections = (
+            len(player_detections)
+            + len(goalkeeper_detections)
+            + len(referee_detections)
+            + (1 if ball_detection else 0)
+        )
+
+        # Draw detections
         if player_detections:
             self._draw_players(annotated_frame, player_detections)
+
         if goalkeeper_detections:
-            # self._draw_goalkeepers(annotated_frame, goalkeeper_detections)
-            pass
+            self._draw_goalkeepers(annotated_frame, goalkeeper_detections)
+
         if ball_detection:
             self._draw_ball(annotated_frame, ball_detection)
+
         if referee_detections:
             self._draw_referees(annotated_frame, referee_detections)
 
+        # If no detections found, draw a "No detections" message
+        if total_detections == 0:
+            self._draw_no_detections_message(annotated_frame)
+
+        # Always draw ball control panel (even if empty)
         self._draw_ball_control(annotated_frame, ball_control_data or {})
+
+        # Add a simple frame indicator to ensure something is always visible
+        self._draw_frame_indicator(annotated_frame)
+
         return annotated_frame
 
+    def _draw_frame_indicator(self, frame):
+        """Draw a simple indicator to show the frame is being processed."""
+        frame_height, frame_width = frame.shape[:2]
+
+        # Draw a small indicator in the bottom right corner
+        indicator_size = 20
+        x = frame_width - indicator_size - 10
+        y = frame_height - indicator_size - 10
+
+        # Draw a small circle
+        cv2.circle(frame, (x, y), indicator_size // 2, (0, 255, 0), -1)
+        cv2.circle(frame, (x, y), indicator_size // 2, (255, 255, 255), 2)
+
+        # Add timestamp text
+        import time
+
+        timestamp = time.strftime("%H:%M:%S")
+        cv2.putText(
+            frame,
+            timestamp,
+            (x - 50, y + 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
+        )
+
     def _draw_referees(self, frame, referee_detections):
+        """Draw referee detections with enhanced modern styling."""
         for referee in referee_detections:
             bbox = referee.bbox
-            # Draw rectangle for referee
-            cv2.rectangle(
+            color = self.visual_config.REFEREE_COLOR
+
+            # Enhanced referee rectangle with rounded corners
+            x1, y1, x2, y2 = int(bbox.x1), int(bbox.y1), int(bbox.x2), int(bbox.y2)
+
+            # Draw shadow
+            shadow_offset = 3
+            self._draw_rounded_rectangle(
                 frame,
-                (int(bbox.x1), int(bbox.y1)),
-                (int(bbox.x2), int(bbox.y2)),
+                (x1 + shadow_offset, y1 + shadow_offset),
+                (x2 + shadow_offset, y2 + shadow_offset),
                 (0, 0, 0),
                 2,
             )
 
-            # Draw track ID if available
-            track_id = (
-                referee.metadata["track_id"]
-                if referee.metadata and "track_id" in referee.metadata
-                else None
-            )
+            # Draw main referee border
+            self._draw_rounded_rectangle(frame, (x1, y1), (x2, y2), color, 3)
+
+            # Enhanced track ID display for referee
+            track_id = referee.track_id
+
             if track_id is not None:
-                cv2.putText(
+                # Modern referee badge
+                badge_width = 60
+                badge_height = 25
+                badge_x = x1
+                badge_y = y1 - badge_height - 5
+
+                # Background
+                self._draw_rounded_rectangle(
                     frame,
-                    f"REF-{track_id}",
-                    (int(bbox.x1), int(bbox.y1) - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 0, 0),
+                    (badge_x, badge_y),
+                    (badge_x + badge_width, badge_y + badge_height),
+                    color,
+                    -1,
+                )
+
+                # Border
+                self._draw_rounded_rectangle(
+                    frame,
+                    (badge_x, badge_y),
+                    (badge_x + badge_width, badge_y + badge_height),
+                    (255, 255, 255),
                     2,
-                    cv2.LINE_AA,
+                )
+
+                # Text
+                text = f"REF-{track_id}"
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
+                text_x = badge_x + (badge_width - text_size[0]) // 2
+                text_y = badge_y + (badge_height + text_size[1]) // 2
+
+                self._draw_text_with_shadow(
+                    frame,
+                    text,
+                    (text_x, text_y),
+                    font_scale=0.4,
+                    color=(255, 255, 255),
+                    thickness=1,
                 )
 
     def _draw_goalkeepers(self, frame, goalkeeper_detections):
-        """Draw all goalkeeper detections."""
+        """Draw all goalkeeper detections with enhanced styling."""
         for detection in goalkeeper_detections:
             bbox = detection.bbox.as_list()
-            color = (0, 255, 0)  # Green color for goalkeepers
+            color = self.visual_config.GOALKEEPER_COLOR
 
-            # Draw ellipse at bottom of bbox with optional track ID
+            # Calculate positions
             y2 = int(bbox[3])
             x_center, _ = self._calculate_bbox_center(bbox)
             x_center = int(x_center)
             width = int(bbox[2] - bbox[0])  # x2 - x1
 
+            # Draw enhanced ellipse with glow effect for goalkeeper
+            glow_color = tuple(min(255, c + 50) for c in color)
+
+            # Shadow ellipse
+            cv2.ellipse(
+                frame,
+                center=(x_center + 2, y2 + 2),
+                axes=(int(width * 0.6), int(0.35 * width)),
+                angle=0.0,
+                startAngle=-45,
+                endAngle=235,
+                color=(0, 100, 0),  # Dark green shadow
+                thickness=4,
+                lineType=cv2.LINE_AA,
+            )
+
+            # Main ellipse with special goalkeeper styling
             cv2.ellipse(
                 frame,
                 center=(x_center, y2),
-                axes=(int(width), int(0.35 * width)),
+                axes=(int(width * 0.6), int(0.35 * width)),
                 angle=0.0,
                 startAngle=-45,
                 endAngle=235,
                 color=color,
-                thickness=2,
-                lineType=cv2.LINE_4,
+                thickness=4,
+                lineType=cv2.LINE_AA,
             )
 
-            rectangle_width = 40
-            rectangle_height = 20
-            x1_rect = x_center - rectangle_width // 2
-            x2_rect = x_center + rectangle_width // 2
-            y1_rect = (y2 - rectangle_height // 2) + 15
-            y2_rect = (y2 + rectangle_height // 2) + 15
+            # Enhanced track ID display for goalkeeper
+            track_id = detection.track_id
 
-            track_id = (
-                detection.metadata["track_id"]
-                if detection.metadata and "track_id" in detection.metadata
-                else None
-            )
             if track_id is not None:
-                cv2.rectangle(
+                rectangle_width = 55
+                rectangle_height = 28
+                x1_rect = x_center - rectangle_width // 2
+                x2_rect = x_center + rectangle_width // 2
+                y1_rect = (y2 - rectangle_height // 2) + 15
+                y2_rect = (y2 + rectangle_height // 2) + 15
+
+                # Special goalkeeper badge design
+                self._draw_rounded_rectangle(
                     frame,
                     (int(x1_rect), int(y1_rect)),
                     (int(x2_rect), int(y2_rect)),
                     color,
-                    cv2.FILLED,
+                    -1,
                 )
 
-                x1_text = x1_rect + 12
-                if track_id > 99:
-                    x1_text -= 10
-
-                cv2.putText(
+                # Add goalkeeper icon border
+                self._draw_rounded_rectangle(
                     frame,
-                    f"GK{track_id}",
-                    (int(x1_text), int(y1_rect + 15)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 0, 0),
+                    (int(x1_rect), int(y1_rect)),
+                    (int(x2_rect), int(y2_rect)),
+                    (255, 255, 255),
                     2,
                 )
 
+                # Goalkeeper text with special formatting
+                text = f"GK{track_id}"
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                text_x = x_center - text_size[0] // 2
+                text_y = int(y1_rect + rectangle_height // 2 + text_size[1] // 2)
+
+                self._draw_text_with_shadow(
+                    frame,
+                    text,
+                    (text_x, text_y),
+                    font_scale=0.5,
+                    color=(0, 0, 0),
+                    thickness=2,
+                )
+
     def _draw_ball(self, frame, ball_detection):
-        """Draw a single ball detection on the frame."""
+        """Draw a single ball detection with enhanced modern styling."""
         if not ball_detection:
             return
 
         bbox = ball_detection.bbox.as_list()
-        color = (0, 0, 255)  # Red color for ball
-        y = int(bbox[1])
-        x, _ = self._calculate_bbox_center(bbox)
-        x = int(x)
+        x, y_top = self._calculate_bbox_center(bbox)
+        x, y_top = int(x), int(bbox[1])  # Use top of bbox
 
+        # Enhanced ball indicator with glowing effect
+        ball_color = self.visual_config.BALL_COLOR
+        glow_color = tuple(min(255, c + 100) for c in ball_color)
+
+        # Draw multiple layers for glow effect
+        for i, (radius, color, alpha) in enumerate(
+            [(20, glow_color, 0.3), (15, ball_color, 0.6), (12, ball_color, 0.9)]
+        ):
+            # Create a circle for glow layers
+            overlay = frame.copy()
+            cv2.circle(overlay, (x, y_top - 25), radius, color, -1)
+            cv2.addWeighted(frame, 1 - alpha, overlay, alpha, 0, frame)
+
+        # Draw main ball triangle with shadow
         triangle_points = np.array(
             [
-                [x, y],
-                [x - 10, y - 20],
-                [x + 10, y - 20],
+                [x, y_top - 5],
+                [x - 12, y_top - 25],
+                [x + 12, y_top - 25],
             ]
         )
-        cv2.drawContours(frame, [triangle_points], 0, color, cv2.FILLED)
-        cv2.drawContours(frame, [triangle_points], 0, (0, 0, 0), 2)
+
+        # Shadow
+        shadow_points = triangle_points + [2, 2]
+        cv2.fillPoly(frame, [shadow_points], (0, 0, 0))
+
+        # Main triangle
+        cv2.fillPoly(frame, [triangle_points], ball_color)
+        cv2.polylines(frame, [triangle_points], True, (255, 255, 255), 2, cv2.LINE_AA)
+
+        # Add "BALL" text with modern styling
+        text = "BALL"
+        text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
+        text_x = x - text_size[0] // 2
+        text_y = y_top - 35
+
+        # Background for text
+        self._draw_rounded_rectangle(
+            frame,
+            (text_x - 8, text_y - text_size[1] - 4),
+            (text_x + text_size[0] + 8, text_y + 4),
+            (0, 0, 0),
+            -1,
+        )
+
+        self._draw_text_with_shadow(
+            frame, text, (text_x, text_y), font_scale=0.4, color=ball_color, thickness=1
+        )
 
     def _draw_players(self, frame, player_detections):
-        """Draw all player and goalkeeper detections."""
+        """Draw all player and goalkeeper detections with enhanced visuals."""
         for detection in player_detections:
             bbox = detection.bbox.as_list()
 
-            # Color based on object type and team
-            team = (
-                detection.metadata["team"]
-                if detection.metadata and "team" in detection.metadata
-                else None
-            )
+            # Enhanced color scheme based on team
+            team = detection.team
             if team == 1:
-                color = (255, 255, 0)
-                # Red for GK, Green for team 1
+                color = self.visual_config.TEAM_1_COLOR
+                team_name = "Team A"
             elif team == 0:
-                color = (0, 255, 255)
-                # Red for GK, Blue for team 2
+                color = self.visual_config.TEAM_2_COLOR
+                team_name = "Team B"
             else:
                 color = (128, 128, 128)
-                # Default colors
+                team_name = "Unknown"
 
-            # Draw ellipse at bottom of bbox with optional track ID
+            # Calculate positions
             y2 = int(bbox[3])
             x_center, _ = self._calculate_bbox_center(bbox)
             x_center = int(x_center)
             width = int(bbox[2] - bbox[0])  # x2 - x1
 
+            # Draw enhanced ellipse with gradient effect
+            ellipse_color = color
+            shadow_color = tuple(c // 3 for c in color)  # Darker shadow
+
+            # Draw shadow ellipse
             cv2.ellipse(
                 frame,
-                center=(x_center, y2),
-                axes=(int(width), int(0.35 * width)),
+                center=(x_center + 2, y2 + 2),
+                axes=(int(width * 0.6), int(0.35 * width)),
                 angle=0.0,
                 startAngle=-45,
                 endAngle=235,
-                color=color,
-                thickness=2,
-                lineType=cv2.LINE_4,
+                color=shadow_color,
+                thickness=3,
+                lineType=cv2.LINE_AA,
             )
 
-            rectangle_width = 40
-            rectangle_height = 20
-            x1_rect = x_center - rectangle_width // 2
-            x2_rect = x_center + rectangle_width // 2
-            y1_rect = (y2 - rectangle_height // 2) + 15
-            y2_rect = (y2 + rectangle_height // 2) + 15
-
-            track_id = (
-                detection.metadata["track_id"]
-                if detection.metadata and "track_id" in detection.metadata
-                else None
+            # Draw main ellipse with anti-aliasing
+            cv2.ellipse(
+                frame,
+                center=(x_center, y2),
+                axes=(int(width * 0.6), int(0.35 * width)),
+                angle=0.0,
+                startAngle=-45,
+                endAngle=235,
+                color=ellipse_color,
+                thickness=3,
+                lineType=cv2.LINE_AA,
             )
+
+            # Enhanced track ID display
+            track_id = detection.track_id
+
             if track_id is not None:
-                cv2.rectangle(
+                # Modern rounded rectangle for track ID
+                rectangle_width = 50
+                rectangle_height = 24
+                x1_rect = x_center - rectangle_width // 2
+                x2_rect = x_center + rectangle_width // 2
+                y1_rect = (y2 - rectangle_height // 2) + 15
+                y2_rect = (y2 + rectangle_height // 2) + 15
+
+                # Draw background with rounded corners effect
+                self._draw_rounded_rectangle(
                     frame,
                     (int(x1_rect), int(y1_rect)),
                     (int(x2_rect), int(y2_rect)),
                     color,
-                    cv2.FILLED,
+                    -1,
                 )
 
-                x1_text = x1_rect + 12
-                if track_id > 99:
-                    x1_text -= 10
-
-                cv2.putText(
+                # Add subtle border
+                self._draw_rounded_rectangle(
                     frame,
-                    f"{track_id}",
-                    (int(x1_text), int(y1_rect + 15)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 0, 0),
-                    2,
+                    (int(x1_rect), int(y1_rect)),
+                    (int(x2_rect), int(y2_rect)),
+                    (255, 255, 255),
+                    1,
                 )
 
-            # Draw player speed above the player
-            self._draw_player_speed(frame, detection, x_center, int(bbox[1]) - 10)
+                # Center the text better
+                text = f"{track_id}"
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                text_x = x_center - text_size[0] // 2
+                text_y = int(y1_rect + rectangle_height // 2 + text_size[1] // 2)
+
+                # Draw text with better contrast
+                self._draw_text_with_shadow(
+                    frame,
+                    text,
+                    (text_x, text_y),
+                    font_scale=0.6,
+                    color=(0, 0, 0),
+                    thickness=2,
+                )
+
+            # Draw enhanced player speed
+            self._draw_player_speed(frame, detection, x_center, int(bbox[1]) - 15)
 
     def _draw_player_speed(self, frame, detection, x_center, y_position):
         """
-        Draw speed information for an individual player.
+        Draw speed information for an individual player with enhanced styling.
 
         Args:
             frame: The frame to draw on
@@ -307,106 +579,317 @@ class RendererProcessor(Processor):
             x_center: X coordinate for speed text
             y_position: Y coordinate for speed text
         """
-        if not detection.metadata:
-            return
-
-        # Get speed from player metadata
-        speed = detection.metadata.get("speed", None)
+        # Get speed from detection
+        speed = detection.speed
 
         if speed is not None:
-            # Format speed text
-            speed_text = f"{speed:.1f}km/h"
+            # Format speed text with better formatting
+            speed_text = f"{speed:.1f}"
+            unit_text = "km/h"
 
-            # Get text size to center it
-            text_size = cv2.getTextSize(speed_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
-            text_x = x_center - text_size[0] // 2
+            # Get text sizes
+            speed_size = cv2.getTextSize(speed_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[
+                0
+            ]
+            unit_size = cv2.getTextSize(unit_text, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)[0]
 
-            # Draw background for better visibility
-            bg_padding = 2
-            cv2.rectangle(
-                frame,
-                (text_x - bg_padding, y_position - text_size[1] - bg_padding),
-                (text_x + text_size[0] + bg_padding, y_position + bg_padding),
-                (0, 0, 0),
-                -1,
+            total_width = speed_size[0] + unit_size[0] + 5
+            max_height = max(speed_size[1], unit_size[1])
+
+            # Calculate positions
+            bg_padding = 6
+            bg_x1 = x_center - total_width // 2 - bg_padding
+            bg_x2 = x_center + total_width // 2 + bg_padding
+            bg_y1 = y_position - max_height - bg_padding
+            bg_y2 = y_position + bg_padding
+
+            # Draw modern background with gradient effect
+            self._draw_rounded_rectangle(
+                frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (0, 0, 0), -1  # Black background
             )
 
-            # Draw speed text in white
-            cv2.putText(
+            # Add subtle border
+            self._draw_rounded_rectangle(
+                frame,
+                (bg_x1, bg_y1),
+                (bg_x2, bg_y2),
+                self.visual_config.ACCENT_COLOR,
+                1,
+            )
+
+            # Draw speed number (larger, bold)
+            speed_x = x_center - total_width // 2
+            self._draw_text_with_shadow(
                 frame,
                 speed_text,
-                (text_x, y_position),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,
-                (255, 255, 255),
-                1,
-                cv2.LINE_AA,
+                (speed_x, y_position),
+                font_scale=0.5,
+                color=(255, 255, 255),
+                thickness=2,
+            )
+
+            # Draw unit (smaller, to the right)
+            unit_x = speed_x + speed_size[0] + 5
+            unit_y = y_position - 2  # Slightly higher
+            self._draw_text_with_shadow(
+                frame,
+                unit_text,
+                (unit_x, unit_y),
+                font_scale=0.3,
+                color=(200, 200, 200),
+                thickness=1,
             )
 
     def _draw_ball_control(self, frame, ball_control_data: Dict[str, Any]):
         """
-        Draws ball control information on the frame.
+        Draws ball control information with modern, beautiful styling.
         Args:
             frame (np.ndarray): The frame to draw on.
             ball_control_data (dict): Ball control data containing percentages and counts.
         """
+        frame_height, frame_width = frame.shape[:2]
+
         if not ball_control_data:
-            # Debug: Show when no data is available
-            cv2.putText(
-                frame,
-                "No ball control data",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 0, 255),  # Red color for debug
-                2,
-            )
+            # Modern "no data" indicator
+            self._draw_no_data_indicator(frame)
             return
 
         percentages = ball_control_data.get("percentages", {})
         total_frames = ball_control_data.get("total_frames_analyzed", 0)
 
-        # Draw background rectangle for better visibility
-        overlay_height = 30 + len(percentages) * 25 + 30
-        cv2.rectangle(frame, (5, 5), (350, overlay_height), (0, 0, 0), -1)
-        cv2.rectangle(frame, (5, 5), (350, overlay_height), (255, 255, 255), 2)
+        # Enhanced modern overlay design
+        panel_width = 400
+        panel_height = 160
+        panel_x = 20
+        panel_y = 20
 
-        # draw ball control percentages in the top left corner overlay
-        y_offset = 30
+        # Create semi-transparent background with gradient
+        overlay = frame.copy()
 
+        # Main panel background
+        self._draw_rounded_rectangle(
+            overlay,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + panel_height),
+            self.visual_config.BACKGROUND_COLOR,
+            -1,
+        )
+
+        # Add gradient effect
+        self._create_gradient_overlay(
+            overlay,
+            (40, 40, 40),  # Dark gray
+            (20, 20, 20),  # Darker gray
+            (panel_x, panel_y),
+            (panel_width, panel_height),
+        )
+
+        # Blend overlay with frame
+        cv2.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
+
+        # Add border with accent color
+        self._draw_rounded_rectangle(
+            frame,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + panel_height),
+            self.visual_config.ACCENT_COLOR,
+            2,
+        )
+
+        # Title with modern typography
+        title_y = panel_y + 35
+        self._draw_text_with_shadow(
+            frame,
+            "BALL POSSESSION",
+            (panel_x + 20, title_y),
+            font_scale=0.7,
+            color=self.visual_config.TEXT_COLOR,
+            thickness=2,
+        )
+
+        # Draw possession bars
         if not percentages:
-            cv2.putText(
+            self._draw_text_with_shadow(
                 frame,
                 "No possession detected",
-                (10, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (255, 255, 255),
-                2,
+                (panel_x + 20, title_y + 40),
+                font_scale=0.5,
+                color=(150, 150, 150),
+                thickness=1,
             )
         else:
-            for team_id, percentage in percentages.items():
-                text = f"Team {team_id}: {percentage:.1f}%"
-                cv2.putText(
-                    frame,
-                    text,
-                    (10, y_offset),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (255, 255, 255),
-                    2,
-                )
-                y_offset += 25
+            bar_y_start = title_y + 30
+            bar_height = 20
+            bar_width = panel_width - 60
 
-        # Display total frames analyzed
-        cv2.putText(
+            for i, (team_id, percentage) in enumerate(percentages.items()):
+                y_pos = bar_y_start + (i * 40)
+
+                # Team label
+                team_color = (
+                    self.visual_config.TEAM_1_COLOR
+                    if team_id == "1"
+                    else self.visual_config.TEAM_2_COLOR
+                )
+                team_name = f"Team {'A' if team_id == '1' else 'B'}"
+
+                self._draw_text_with_shadow(
+                    frame,
+                    team_name,
+                    (panel_x + 20, y_pos + 15),
+                    font_scale=0.5,
+                    color=team_color,
+                    thickness=2,
+                )
+
+                # Possession bar background
+                bar_x = panel_x + 100
+                self._draw_rounded_rectangle(
+                    frame,
+                    (bar_x, y_pos),
+                    (bar_x + bar_width, y_pos + bar_height),
+                    (60, 60, 60),
+                    -1,
+                )
+
+                # Possession bar fill
+                fill_width = int(bar_width * percentage / 100)
+                if fill_width > 0:
+                    self._draw_rounded_rectangle(
+                        frame,
+                        (bar_x, y_pos),
+                        (bar_x + fill_width, y_pos + bar_height),
+                        team_color,
+                        -1,
+                    )
+
+                # Percentage text
+                percentage_text = f"{percentage:.1f}%"
+                text_size = cv2.getTextSize(
+                    percentage_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2
+                )[0]
+                text_x = bar_x + bar_width + 10
+
+                self._draw_text_with_shadow(
+                    frame,
+                    percentage_text,
+                    (text_x, y_pos + 15),
+                    font_scale=0.5,
+                    color=self.visual_config.TEXT_COLOR,
+                    thickness=2,
+                )
+
+        # Statistics footer
+        stats_y = panel_y + panel_height - 25
+        stats_text = f"Analyzed frames: {total_frames}"
+        self._draw_text_with_shadow(
             frame,
-            f"Total frames with ball: {total_frames}",
-            (10, y_offset),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (255, 255, 255),
+            stats_text,
+            (panel_x + 20, stats_y),
+            font_scale=0.4,
+            color=(180, 180, 180),
+            thickness=1,
+        )
+
+    def _draw_no_data_indicator(self, frame):
+        """Draw a modern indicator when no ball control data is available."""
+        panel_width = 350
+        panel_height = 100
+        panel_x = 20
+        panel_y = 20
+
+        # Semi-transparent background
+        overlay = frame.copy()
+        self._draw_rounded_rectangle(
+            overlay,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + panel_height),
+            (40, 40, 40),
+            -1,
+        )
+        cv2.addWeighted(frame, 0.8, overlay, 0.2, 0, frame)
+
+        # Border
+        self._draw_rounded_rectangle(
+            frame,
+            (panel_x, panel_y),
+            (panel_x + panel_width, panel_y + panel_height),
+            (100, 200, 255),
             2,
+        )
+
+        # Main text
+        self._draw_text_with_shadow(
+            frame,
+            "FOOTBALL ANALYSIS - ENHANCED RENDERER",
+            (panel_x + 20, panel_y + 35),
+            font_scale=0.6,
+            color=(100, 200, 255),
+            thickness=2,
+        )
+
+        # Status text
+        self._draw_text_with_shadow(
+            frame,
+            "Analyzing ball possession...",
+            (panel_x + 20, panel_y + 65),
+            font_scale=0.4,
+            color=(200, 200, 200),
+            thickness=1,
+        )
+
+    def _draw_no_detections_message(self, frame):
+        """Draw a message when no detections are found."""
+        frame_height, frame_width = frame.shape[:2]
+
+        # Calculate center position
+        center_x = frame_width // 2
+        center_y = frame_height // 2
+
+        # Main message
+        message = "NO DETECTIONS FOUND"
+        text_size = cv2.getTextSize(message, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 3)[0]
+        text_x = center_x - text_size[0] // 2
+        text_y = center_y
+
+        # Background rectangle
+        padding = 20
+        bg_x1 = text_x - padding
+        bg_y1 = text_y - text_size[1] - padding
+        bg_x2 = text_x + text_size[0] + padding
+        bg_y2 = text_y + padding
+
+        # Draw semi-transparent background
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (bg_x1, bg_y1), (bg_x2, bg_y2), (0, 0, 0), -1)
+        cv2.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
+
+        # Draw border
+        cv2.rectangle(frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (255, 255, 0), 3)
+
+        # Draw main text
+        self._draw_text_with_shadow(
+            frame,
+            message,
+            (text_x, text_y),
+            font_scale=1.0,
+            color=(255, 255, 0),
+            thickness=3,
+        )
+
+        # Additional info
+        info_text = "Check if object detection is working properly"
+        info_size = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+        info_x = center_x - info_size[0] // 2
+        info_y = center_y + 40
+
+        self._draw_text_with_shadow(
+            frame,
+            info_text,
+            (info_x, info_y),
+            font_scale=0.6,
+            color=(255, 255, 255),
+            thickness=2,
         )
 
     def _calculate_bbox_center(self, bbox):
