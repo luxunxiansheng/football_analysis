@@ -5,14 +5,7 @@ This module provides the main orchestrator class that coordinates all processors
 to perform comprehensive football video analysis.
 """
 
-import logging
-from pathlib import Path
-from typing import Optional, List, Dict, Any
-import cv2
-import numpy as np
-import torch
-from tqdm import tqdm
-
+from .utils import *
 from .config import FootballAIConfig, get_default_config
 from .domain.data_models import VideoData, FrameData
 from .domain.interfaces import Processor
@@ -23,8 +16,7 @@ from .tracking.track_processor import TrackProcessor
 from .motion.object_motion_processor import ObjectMotionProcessor
 from .motion.camera_motion_processor import CameraMotionProcessor
 from .transformation.field_transformation_processor import FieldTransformationProcessor
-from .assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor 
-
+from .assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor
 from .assignment.ball_assignment_processor import BallAssignmentProcessor
 from .analysis.speed_processor import SpeedProcessor
 from .rendering.renderer_processor import RendererProcessor
@@ -57,18 +49,7 @@ class FootballAnalysisPipeline:
 
     def _setup_logging(self) -> logging.Logger:
         """Setup logging configuration."""
-        logger = logging.getLogger("FootballAnalysisPipeline")
-        logger.setLevel(getattr(logging, self.config.log_level))
-
-        if not logger.handlers:
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
-
-        return logger
+        return setup_logger("FootballAnalysisPipeline", self.config.log_level)
 
     def _build_processors(self) -> None:
         """Build the processor pipeline based on configuration."""
@@ -114,7 +95,7 @@ class FootballAnalysisPipeline:
         )
 
         # Team and ball assignment
-        
+
         device = "cuda" if torch.cuda.is_available() else "cpu"
         team_assignment_processor = SigLIPTeamAssignmentProcessor(
             self.config.model.team_model_path,
@@ -123,16 +104,14 @@ class FootballAnalysisPipeline:
         )
 
         self.processors.append(team_assignment_processor)
-  
+
         self.processors.append(
             BallAssignmentProcessor(
                 max_distance=self.config.possession.possession_distance
             )
         )
 
-
         self.processors.append(BallControlProcessor())
-
 
         # Analysis
         self.processors.append(SpeedProcessor())
@@ -168,22 +147,18 @@ class FootballAnalysisPipeline:
         Returns:
             VideoData object with loaded frames
         """
-        if not Path(video_path).exists():
-            raise FileNotFoundError(f"Video file not found: {video_path}")
+        if not validate_video_path(video_path):
+            raise FileNotFoundError(f"Video file not found or invalid: {video_path}")
 
-        cap = cv2.VideoCapture(video_path)
-
-        # Get video properties
-        frame_rate = cap.get(cv2.CAP_PROP_FPS)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        width, height, frame_rate, total_frames = get_video_info(video_path)
         duration = total_frames / frame_rate if frame_rate > 0 else 0
 
         self.logger.info(f"Loading video: {video_path}")
         self.logger.info(
             f"Properties: {width}x{height} @ {frame_rate}fps, {total_frames} frames"
         )
+
+        cap = cv2.VideoCapture(video_path)
 
         frames = []
         frame_number = 0
@@ -193,8 +168,8 @@ class FootballAnalysisPipeline:
             self.config.processing, "process_every_nth_frame", 1
         )
 
-        # Use tqdm for progress bar when loading frames
-        progress_bar = tqdm(
+        # Use our utility function for progress bar
+        progress_bar = create_progress_bar(
             total=total_frames,
             desc="Loading video frames",
             unit="frames",
@@ -259,8 +234,8 @@ class FootballAnalysisPipeline:
             self.logger.info("Starting video analysis pipeline")
 
             # Use progress bar for processor execution
-            processor_progress = tqdm(
-                self.processors,
+            processor_progress = create_progress_bar(
+                iterable=self.processors,
                 desc="Processing pipeline",
                 unit="processor",
                 disable=not self.config.show_progress_bars,

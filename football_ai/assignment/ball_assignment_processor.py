@@ -1,5 +1,4 @@
-import numpy as np
-from tqdm import tqdm
+from ..utils import np, create_progress_bar
 from ..domain.data_models import VideoData, FrameData
 from ..domain.interfaces import Processor
 
@@ -11,7 +10,9 @@ class BallAssignmentProcessor(Processor):
     def process(self, data: VideoData) -> VideoData:
         # Use progress bar only if processing many frames (>50)
         if len(data.frames) > 50:
-            progress_bar = tqdm(data.frames, desc="Ball assignment", unit="frames")
+            progress_bar = create_progress_bar(
+                iterable=data.frames, desc="Ball assignment", unit="frames"
+            )
             frame_iterator = progress_bar
         else:
             frame_iterator = data.frames

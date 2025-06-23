@@ -1,12 +1,7 @@
 from supervision.tracker.byte_tracker.core import ByteTrack
 from supervision.detection.core import Detections
-import numpy as np
-import logging
-from tqdm import tqdm
-from typing import List, Dict, Optional, Any, Set
-from collections import defaultdict
-import cv2
 
+from ..utils import np, logging, tqdm, cv2, List, Dict, Optional, Any, Set, defaultdict
 from ..domain.data_models import VideoData, Detection
 from ..domain.interfaces import Processor
 

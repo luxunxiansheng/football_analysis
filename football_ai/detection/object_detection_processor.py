@@ -1,5 +1,4 @@
-import numpy as np
-from tqdm import tqdm
+from ..utils import np, create_progress_bar
 from ..domain.data_models import VideoData, BoundingBox, Detection, ObjectType
 from ..domain.interfaces import Processor
 
@@ -13,7 +12,9 @@ class ObjectDetectionProcessor(Processor):
 
     def process(self, data: VideoData) -> VideoData:
         # Use progress bar for object detection
-        frames_progress_bar = tqdm(data.frames, desc="Object detection", unit="frames")
+        frames_progress_bar = create_progress_bar(
+            iterable=data.frames, desc="Object detection", unit="frames"
+        )
 
         for frame_data in frames_progress_bar:
             frame = frame_data.raw_frame

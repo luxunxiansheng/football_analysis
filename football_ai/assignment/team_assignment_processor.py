@@ -1,12 +1,7 @@
-from typing import List, Optional
-import os
-
-import numpy as np
-import torch
+from ..utils import List, Optional, os, np, torch, create_progress_bar
 import umap
 from PIL import Image
 from sklearn.cluster import KMeans
-from tqdm import tqdm
 from transformers import AutoProcessor, SiglipVisionModel
 
 from ..domain.interfaces import Processor
@@ -92,7 +87,9 @@ class SigLIPTeamAssignmentProcessor(Processor):
                     Image.fromarray(crop[..., ::-1]) for crop in batch_crops
                 ]  # BGR to RGB
 
-                inputs = self.processor(images=batch_pil, return_tensors="pt").to(self.device)
+                inputs = self.processor(images=batch_pil, return_tensors="pt").to(
+                    self.device
+                )
                 outputs = self.model(**inputs)
                 embeddings = torch.mean(outputs.last_hidden_state, dim=1).cpu().numpy()
                 features.append(embeddings)
@@ -117,7 +114,6 @@ class SigLIPTeamAssignmentProcessor(Processor):
         """Assign team labels to players."""
         if not self._is_trained:
             self.train(video_data)
-              
 
         for frame in video_data.frames:
             if not frame.detections:

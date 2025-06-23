@@ -1,55 +1,26 @@
-import cv2
-import os
-import numpy as np
-from football_ai.detection.object_detection_processor import ObjectDetectionProcessor
-from football_ai.tracking.track_processor import TrackProcessor
+from test_utils import (
+    get_test_video_path,
+    create_test_processors,
+    create_test_video_data,
+    run_standard_pipeline_test,
+)
 from football_ai.motion.object_motion_processor import ObjectMotionProcessor
 from football_ai.assignment.team_assignment_processor import (
-    TeamAssignmentProcessor,
+    SigLIPTeamAssignmentProcessor as TeamAssignmentProcessor,
 )
 from football_ai.assignment.ball_assignment_processor import BallAssignmentProcessor
-from football_ai.domain.data_models import VideoData, FrameData
 
 
 def test_ball_assignment_processor():
-    video_path = os.path.abspath("input_videos/08fd33_4.mp4")
-    model_path = os.path.abspath("models/detect/best.pt")
-    detection_processor = ObjectDetectionProcessor(model_path)
-    track_processor = TrackProcessor(
-        track_activation_threshold=0.15,
-        lost_track_buffer=120,
-        minimum_matching_threshold=0.95,
-        frame_rate=30,
-        minimum_consecutive_frames=1,
-    )
+    # Use utility functions for setup
+    video_path = get_test_video_path()
+    detection_processor, track_processor = create_test_processors()
+
     motion_processor = ObjectMotionProcessor()
     team_processor = TeamAssignmentProcessor()
     ball_processor = BallAssignmentProcessor()
 
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-    frame_count = 0
-    while frame_count < 3:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frames.append(
-            FrameData(
-                frame_number=frame_count,
-                timestamp=cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0,
-                raw_frame=frame,
-            )
-        )
-        frame_count += 1
-    cap.release()
-
-    video_data = VideoData(
-        video_path=video_path,
-        frame_rate=cap.get(cv2.CAP_PROP_FPS),
-        resolution=(frame.shape[1], frame.shape[0]) if frames else (0, 0),
-        duration=cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0,
-        frames=frames,
-    )
+    video_data = create_test_video_data(video_path, max_frames=3)
 
     detected = detection_processor.process(video_data)
     tracked = track_processor.process(detected)

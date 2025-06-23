@@ -1,6 +1,4 @@
-import cv2
-import numpy as np
-from tqdm import tqdm
+from ..utils import cv2, np, create_progress_bar
 from ..domain.data_models import VideoData
 from ..domain.interfaces import Processor
 
@@ -19,14 +17,14 @@ class VideoWriterProcessor(Processor):
         if not video_data.frames:
             raise ValueError("No frames to write in VideoData.")
         height, width = video_data.resolution[1], video_data.resolution[0]
-        fourcc = cv2.VideoWriter_fourcc(*self.codec)
+        fourcc = cv2.VideoWriter.fourcc(*self.codec)
         out = cv2.VideoWriter(
             self.output_path, fourcc, video_data.frame_rate, (width, height)
         )
 
         # Use progress bar for frame writing
-        progress_bar = tqdm(
-            video_data.frames, desc="Writing video frames", unit="frames"
+        progress_bar = create_progress_bar(
+            iterable=video_data.frames, desc="Writing video frames", unit="frames"
         )
 
         for frame_data in progress_bar:
