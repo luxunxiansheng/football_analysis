@@ -63,10 +63,13 @@ class RendererProcessor(Processor):
         # Filter detections by object type
         player_detections = []
         referee_detections = []
+        goalkeeper_detections = []
         ball_detection = None
         for detection in detections:
-            if detection.object_type in [ObjectType.PLAYER, ObjectType.GOALKEEPER]:
+            if detection.object_type in [ObjectType.PLAYER]:
                 player_detections.append(detection)
+            elif detection.object_type == ObjectType.GOALKEEPER:
+                goalkeeper_detections.append(detection)
             elif detection.object_type == ObjectType.REFEREE:
                 referee_detections.append(detection)
             elif detection.object_type == ObjectType.BALL:
@@ -77,6 +80,9 @@ class RendererProcessor(Processor):
         annotated_frame = frame.copy()
         if player_detections:
             self._draw_players(annotated_frame, player_detections)
+        if goalkeeper_detections:
+            #self._draw_goalkeepers(annotated_frame, goalkeeper_detections)
+            pass
         if ball_detection:
             self._draw_ball(annotated_frame, ball_detection)
         if referee_detections:
@@ -114,6 +120,65 @@ class RendererProcessor(Processor):
                     cv2.LINE_AA,
                 )
 
+    def _draw_goalkeepers(self, frame, goalkeeper_detections):
+        """Draw all goalkeeper detections."""
+        for detection in goalkeeper_detections:
+            bbox = detection.bbox.as_list()
+            color = (0, 255, 0)  # Green color for goalkeepers
+
+            # Draw ellipse at bottom of bbox with optional track ID
+            y2 = int(bbox[3])
+            x_center, _ = self._calculate_bbox_center(bbox)
+            x_center = int(x_center)
+            width = int(bbox[2] - bbox[0])  # x2 - x1
+
+            cv2.ellipse(
+                frame,
+                center=(x_center, y2),
+                axes=(int(width), int(0.35 * width)),
+                angle=0.0,
+                startAngle=-45,
+                endAngle=235,
+                color=color,
+                thickness=2,
+                lineType=cv2.LINE_4,
+            )
+
+            rectangle_width = 40
+            rectangle_height = 20
+            x1_rect = x_center - rectangle_width // 2
+            x2_rect = x_center + rectangle_width // 2
+            y1_rect = (y2 - rectangle_height // 2) + 15
+            y2_rect = (y2 + rectangle_height // 2) + 15
+
+            track_id = (
+                detection.metadata["track_id"]
+                if detection.metadata and "track_id" in detection.metadata
+                else None
+            )
+            if track_id is not None:
+                cv2.rectangle(
+                    frame,
+                    (int(x1_rect), int(y1_rect)),
+                    (int(x2_rect), int(y2_rect)),
+                    color,
+                    cv2.FILLED,
+                )
+
+                x1_text = x1_rect + 12
+                if track_id > 99:
+                    x1_text -= 10
+
+                cv2.putText(
+                    frame,
+                    f"GK{track_id}",
+                    (int(x1_text), int(y1_rect + 15)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 0),
+                    2,
+                )
+
     def _draw_ball(self, frame, ball_detection):
         """Draw a single ball detection on the frame."""
         if not ball_detection:
@@ -141,24 +206,21 @@ class RendererProcessor(Processor):
             bbox = detection.bbox.as_list()
 
             # Color based on object type and team
-            is_goalkeeper = detection.object_type == ObjectType.GOALKEEPER
+            
             team = (
                 detection.metadata["team"]
                 if detection.metadata and "team" in detection.metadata
                 else None
             )
             if team == 1:
-                color = (
-                    (255, 0, 0) if is_goalkeeper else (255, 255, 0)
-                )  # Red for GK, Green for team 1
+                color =  (255, 255, 0)
+                  # Red for GK, Green for team 1
             elif team == 0:
-                color = (
-                    (0, 0, 255) if is_goalkeeper else (0, 255, 255)
-                )  # Red for GK, Blue for team 2
+                color = (0, 255, 255)
+                # Red for GK, Blue for team 2
             else:
-                color = (
-                    (0, 255, 255) if is_goalkeeper else (128, 128, 128)
-                )  # Default colors
+                color = (128, 128, 128)
+                # Default colors
 
             # Draw ellipse at bottom of bbox with optional track ID
             y2 = int(bbox[3])

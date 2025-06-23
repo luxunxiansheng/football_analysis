@@ -94,9 +94,7 @@ class SigLIPTeamAssignmentProcessor(Processor):
                     Image.fromarray(crop[..., ::-1]) for crop in batch_crops
                 ]  # BGR to RGB
 
-                inputs = self.processor(images=batch_pil, return_tensors="pt").to(
-                    self.device
-                )
+                inputs = self.processor(images=batch_pil, return_tensors="pt").to(self.device)
                 outputs = self.model(**inputs)
                 embeddings = torch.mean(outputs.last_hidden_state, dim=1).cpu().numpy()
                 features.append(embeddings)
@@ -115,14 +113,13 @@ class SigLIPTeamAssignmentProcessor(Processor):
         features = self._extract_features(crops)
         projections = self.reducer.fit_transform(features)
         self.cluster_model.fit(projections)
-        self._is_fitted = True
+        self._is_trained = True
 
     def process(self, video_data: VideoData) -> VideoData:
         """Assign team labels to players."""
         if not self._is_trained:
             self.train(video_data)
-            self._is_trained = True
-           
+              
 
         for frame in video_data.frames:
             if not frame.detections:
@@ -148,9 +145,9 @@ class SigLIPTeamAssignmentProcessor(Processor):
                         player_detections.append(detection)
 
             if player_crops:
-                features = self._extract_features(player_crops)
-                projections = self.reducer.transform(features)
-                team_labels = self.cluster_model.predict(projections)
+                player_features = self._extract_features(player_crops)
+                player_projections = self.reducer.transform(player_features)
+                team_labels = self.cluster_model.predict(player_projections)
 
                 for detection, team_id in zip(player_detections, team_labels):
                     if detection.metadata is None:
