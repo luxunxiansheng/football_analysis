@@ -573,7 +573,7 @@ class RendererProcessor(Processor):
             return
 
         # Enhanced modern overlay design (more compact)
-        panel_width = 320
+        panel_width = 640
         panel_height = 120
         panel_x = 20
         panel_y = 20
