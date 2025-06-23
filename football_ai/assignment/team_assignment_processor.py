@@ -86,9 +86,7 @@ class SigLIPTeamAssignmentProcessor(Processor):
         # Convert to PIL and process in batches
         features = []
         with torch.no_grad():
-            for i in tqdm(
-                range(0, len(crops), self.batch_size), desc="Extracting features"
-            ):
+            for i in range(0, len(crops), self.batch_size):
                 batch_crops = crops[i : i + self.batch_size]
                 batch_pil = [
                     Image.fromarray(crop[..., ::-1]) for crop in batch_crops

@@ -29,7 +29,7 @@ from .assignment.ball_assignment_processor import BallAssignmentProcessor
 from .analysis.speed_processor import SpeedProcessor
 from .rendering.renderer_processor import RendererProcessor
 from .storing.video_writer_processor import VideoWriterProcessor
-from football_ai.assignment import team_assignment_processor
+from .analysis.ball_control_processor import BallControlProcessor
 
 
 class FootballAnalysisPipeline:
@@ -115,7 +115,6 @@ class FootballAnalysisPipeline:
 
         # Team and ball assignment
         
-        
         device = "cuda" if torch.cuda.is_available() else "cpu"
         team_assignment_processor = SigLIPTeamAssignmentProcessor(
             self.config.model.team_model_path,
@@ -130,6 +129,10 @@ class FootballAnalysisPipeline:
                 max_distance=self.config.possession.possession_distance
             )
         )
+
+
+        self.processors.append(BallControlProcessor())
+
 
         # Analysis
         self.processors.append(SpeedProcessor())
