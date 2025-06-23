@@ -35,8 +35,6 @@ class BallAssignmentProcessor(Processor):
             # Assign each ball to the closest player/goalkeeper within max_distance
             for ball_idx in ball_indices:
                 ball_detection = detections[ball_idx]
-                if ball_detection.metadata is None:
-                    ball_detection.metadata = {}
                 ball_center = self._get_center(ball_detection)
                 min_dist = float("inf")
                 assigned_idx = None
@@ -49,7 +47,7 @@ class BallAssignmentProcessor(Processor):
                     if dist < min_dist and dist <= self.max_distance:
                         min_dist = dist
                         assigned_idx = p_idx
-                ball_detection.metadata["assigned_player"] = assigned_idx
+                ball_detection.assigned_player = assigned_idx
 
         if progress_bar:
             progress_bar.close()

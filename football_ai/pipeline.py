@@ -306,14 +306,12 @@ class FootballAnalysisPipeline:
                     detection_counts[obj_type] += 1
 
                 # Track unique objects
-                track_id = (
-                    detection.metadata.get("track_id") if detection.metadata else None
-                )
+                track_id = detection.track_id
                 if track_id is not None:
                     tracked_objects.add(track_id)
 
                 # Count team assignments
-                team = detection.metadata.get("team") if detection.metadata else None
+                team = detection.team
                 if team == 1:
                     team_assignments["team_1"] += 1
                 elif team == 2:

@@ -144,8 +144,6 @@ class SigLIPTeamAssignmentProcessor(Processor):
                 team_labels = self.cluster_model.predict(player_projections)
 
                 for detection, team_id in zip(player_detections, team_labels):
-                    if detection.metadata is None:
-                        detection.metadata = {}
-                    detection.metadata["team"] = int(team_id)
+                    detection.team = int(team_id)
 
         return video_data

@@ -32,32 +32,58 @@ class CameraMotionProcessor(Processor):
                 )
                 if prev_pts is not None:
                     # Calculate optical flow (track feature points)
-                    next_pts, status, _ = cv2.calcOpticalFlowPyrLK(
+                    next_pts, status, _ = cv2.calcOpticalFlowPyrLK(  # type: ignore
                         self.prev_gray, gray, prev_pts, None
                     )
                     # Compute movement as mean displacement of tracked points
                     if next_pts is not None and status is not None:
-                        movement = np.mean(
-                            next_pts[status.flatten() == 1]
-                            - prev_pts[status.flatten() == 1],
-                            axis=0,
-                        )
-                        if frame_data.metadata is None:
-                            frame_data.metadata = {}
-                        frame_data.metadata["camera_movement"] = movement.tolist()
-                        self.movements.append(movement)
+                        try:
+                            valid_mask = status.flatten() == 1
+                            if np.any(valid_mask) and np.sum(valid_mask) > 0:
+                                valid_prev = prev_pts[valid_mask]
+                                valid_next = next_pts[valid_mask]
+                                if len(valid_prev) > 0 and len(valid_next) > 0:
+                                    movement = np.mean(valid_next - valid_prev, axis=0)
+                                    # Ensure movement is valid and has correct shape
+                                    movement = np.atleast_1d(
+                                        movement
+                                    )  # Ensure it's at least 1D
+                                    if movement.size >= 2:
+                                        frame_data.camera_motion.x_offset = movement[
+                                            0
+                                        ].item()
+                                        frame_data.camera_motion.y_offset = movement[
+                                            1
+                                        ].item()
+                                        self.movements.append(movement)
+                                    elif movement.size == 1:
+                                        # Single dimension case
+                                        frame_data.camera_motion.x_offset = movement[
+                                            0
+                                        ].item()
+                                        frame_data.camera_motion.y_offset = 0.0
+                                    else:
+                                        frame_data.camera_motion.x_offset = 0.0
+                                        frame_data.camera_motion.y_offset = 0.0
+                                else:
+                                    frame_data.camera_motion.x_offset = 0.0
+                                    frame_data.camera_motion.y_offset = 0.0
+                            else:
+                                frame_data.camera_motion.x_offset = 0.0
+                                frame_data.camera_motion.y_offset = 0.0
+                        except (ValueError, IndexError) as e:
+                            # Handle array size/conversion errors
+                            frame_data.camera_motion.x_offset = 0.0
+                            frame_data.camera_motion.y_offset = 0.0
                     else:
-                        if frame_data.metadata is None:
-                            frame_data.metadata = {}
-                        frame_data.metadata["camera_movement"] = [0.0, 0.0]
+                        frame_data.camera_motion.x_offset = 0.0
+                        frame_data.camera_motion.y_offset = 0.0
                 else:
-                    if frame_data.metadata is None:
-                        frame_data.metadata = {}
-                    frame_data.metadata["camera_movement"] = [0.0, 0.0]
+                    frame_data.camera_motion.x_offset = 0.0
+                    frame_data.camera_motion.y_offset = 0.0
             else:
-                if frame_data.metadata is None:
-                    frame_data.metadata = {}
-                frame_data.metadata["camera_movement"] = [0.0, 0.0]
+                frame_data.camera_motion.x_offset = 0.0
+                frame_data.camera_motion.y_offset = 0.0
             self.prev_gray = gray
 
         if progress_bar:

@@ -377,9 +377,7 @@ class TrackProcessor(Processor):
             if not filtered_detections:
                 # If no detections pass the filter, assign -1 to all
                 for detection in detections:
-                    if detection.metadata is None:
-                        detection.metadata = {}
-                    detection.metadata["track_id"] = -1
+                    detection.track_id = -1
                 continue
 
             boxes = np.array([det.bbox.as_list() for det in filtered_detections])
@@ -415,9 +413,6 @@ class TrackProcessor(Processor):
 
             # Assign track IDs back to filtered detections with additional validation
             for detection, tid in zip(filtered_detections, track_ids):
-                if detection.metadata is None:
-                    detection.metadata = {}
-
                 final_track_id = int(tid) if tid is not None else -1
 
                 # Additional temporal validation for existing tracks
@@ -428,7 +423,7 @@ class TrackProcessor(Processor):
                 ):
                     final_track_id = -1  # Reject implausible movement
 
-                detection.metadata["track_id"] = final_track_id
+                detection.track_id = final_track_id
 
                 # Update track history
                 self._update_track_history(detection, final_track_id)
@@ -436,9 +431,7 @@ class TrackProcessor(Processor):
             # For detections that were filtered out, assign -1 (untracked)
             for detection in detections:
                 if detection not in filtered_detections:
-                    if detection.metadata is None:
-                        detection.metadata = {}
-                    detection.metadata["track_id"] = -1
+                    detection.track_id = -1
 
         frames_with_progress_bar.close()
 
@@ -496,29 +489,28 @@ class TrackProcessor(Processor):
                 continue
 
             for detection in frame.detections:
-                if hasattr(detection, "metadata") and detection.metadata:
-                    track_id = detection.metadata.get("track_id")
-                    if track_id is not None and track_id > 0:
-                        if track_id not in track_info:
-                            track_info[track_id] = {
-                                "frames": [],
-                                "positions": [],
-                                "object_type": "",
-                                "confidences": [],
-                            }
+                track_id = detection.track_id
+                if track_id is not None and track_id > 0:
+                    if track_id not in track_info:
+                        track_info[track_id] = {
+                            "frames": [],
+                            "positions": [],
+                            "object_type": "",
+                            "confidences": [],
+                        }
 
-                        info = track_info[track_id]
-                        info["frames"].append(frame_num)
+                    info = track_info[track_id]
+                    info["frames"].append(frame_num)
 
-                        # Get position from bbox center
-                        bbox_props = self._get_bbox_properties(detection.bbox)
-                        center_x = bbox_props["center_x"]
-                        center_y = bbox_props["center_y"]
-                        info["positions"].append((center_x, center_y))
-                        info["confidences"].append(detection.confidence)
+                    # Get position from bbox center
+                    bbox_props = self._get_bbox_properties(detection.bbox)
+                    center_x = bbox_props["center_x"]
+                    center_y = bbox_props["center_y"]
+                    info["positions"].append((center_x, center_y))
+                    info["confidences"].append(detection.confidence)
 
-                        if info["object_type"] == "":
-                            info["object_type"] = detection.object_type or "unknown"
+                    if info["object_type"] == "":
+                        info["object_type"] = detection.object_type or "unknown"
 
         return track_info
 
@@ -650,10 +642,9 @@ class TrackProcessor(Processor):
                 continue
 
             for detection in frame.detections:
-                if hasattr(detection, "metadata") and detection.metadata:
-                    old_track_id = detection.metadata.get("track_id")
-                    if old_track_id in track_mapping:
-                        detection.metadata["track_id"] = track_mapping[old_track_id]
-                    elif old_track_id is not None and old_track_id > 0:
-                        # Track was filtered out, mark as untracked
-                        detection.metadata["track_id"] = -1
+                old_track_id = detection.track_id
+                if old_track_id in track_mapping:
+                    detection.track_id = track_mapping[old_track_id]
+                elif old_track_id is not None and old_track_id > 0:
+                    # Track was filtered out, mark as untracked
+                    detection.track_id = -1

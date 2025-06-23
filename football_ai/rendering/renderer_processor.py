@@ -33,8 +33,10 @@ class RendererProcessor(Processor):
         if not video_data.frames:
             raise ValueError("No frames to render in VideoData.")
 
-        # Get ball control data from video metadata (fallback)
-        video_ball_control_data = (video_data.metadata or {}).get("ball_control", {})
+        # Get ball control data from video custom data (fallback)
+        video_ball_control_data = (
+            video_data.custom.get("ball_control", {}) if video_data.custom else {}
+        )
 
         # Debug: Check what video-level data we have
         print(
@@ -45,10 +47,13 @@ class RendererProcessor(Processor):
         progress_bar = tqdm(video_data.frames, desc="Rendering frames", unit="frames")
 
         for i, frame_data in enumerate(progress_bar):
-            # Get frame-specific ball control data (real-time updates)
-            frame_ball_control_data = (frame_data.metadata or {}).get(
-                "ball_control", video_ball_control_data
-            )
+            # Get frame-specific ball control data from frame's ball_control object
+            frame_ball_control_data = {
+                "controlling_player": frame_data.ball_control.controlling_player,
+                "possession_team": frame_data.ball_control.possession_team,
+                "control_confidence": frame_data.ball_control.control_confidence,
+                "last_touch_player": frame_data.ball_control.last_touch_player,
+            }
             rendered = self.render_frame(frame_data, frame_ball_control_data)
             frame_data.raw_frame = rendered
 

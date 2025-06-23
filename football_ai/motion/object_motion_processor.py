@@ -11,16 +11,10 @@ class ObjectMotionProcessor(Processor):
         for frame_data in progress_bar:
             detections = frame_data.detections or []
             for detection in detections:
-                if detection.metadata is None:
-                    detection.metadata = {}
-                track_id = (
-                    detection.metadata["track_id"]
-                    if "track_id" in detection.metadata
-                    else None
-                )
+                track_id = detection.track_id
                 bbox = detection.bbox
-                center = [(bbox.x1 + bbox.x2) / 2, (bbox.y1 + bbox.y2) / 2]
-                detection.metadata["object_position"] = center
+                center = ((bbox.x1 + bbox.x2) / 2, (bbox.y1 + bbox.y2) / 2)
+                detection.object_position = center
 
         progress_bar.close()
         return data

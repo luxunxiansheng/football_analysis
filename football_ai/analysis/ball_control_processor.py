@@ -47,26 +47,23 @@ class BallControlProcessor(Processor):
             # Process frame and update running totals
             self._process_frame(frame_data)
 
-            # Calculate current percentages and add to frame metadata
-            current_percentages = self._calculate_percentages()
+            # Store basic ball control data in frame's ball_control object
+            # For now, use simplified approach - you can enhance this later
+            controlling_player = None
+            for player_id, count in self._ball_control_counts.items():
+                if count > 0:  # Simple logic - can be enhanced
+                    controlling_player = player_id
+                    break
 
-            if frame_data.metadata is None:
-                frame_data.metadata = {}
-
-            frame_data.metadata["ball_control"] = {
-                "percentages": current_percentages,
-                "frame_counts": self._ball_control_counts.copy(),
-                "total_frames_analyzed": self._total_frames_with_ball,
-            }
+            frame_data.ball_control.controlling_player = controlling_player
 
         if progress_bar:
             progress_bar.close()
 
-        # Also add final stats to video metadata
-        if data.metadata is None:
-            data.metadata = {}
-
-        data.metadata["ball_control"] = {
+        # Also add final stats to video custom data
+        if data.custom is None:
+            data.custom = {}
+        data.custom["ball_control"] = {
             "percentages": self._calculate_percentages(),
             "frame_counts": self._ball_control_counts.copy(),
             "total_frames_analyzed": self._total_frames_with_ball,
@@ -74,7 +71,7 @@ class BallControlProcessor(Processor):
         }
 
         # Debug: Confirm video metadata is stored
-        print(f"DEBUG: Video metadata stored - {data.metadata['ball_control']}")
+        print(f"DEBUG: Video custom data stored - {data.custom['ball_control']}")
 
         return data
 
@@ -158,9 +155,9 @@ class BallControlProcessor(Processor):
 
     def get_video_level_stats(self, data: VideoData):
         """Get video-level ball control statistics."""
-        if not data.metadata or "ball_control" not in data.metadata:
+        if not data.custom or "ball_control" not in data.custom:
             return None
-        return data.metadata["ball_control"]
+        return data.custom["ball_control"]
 
     def print_video_summary(self, data: VideoData):
         """Print a summary of video-level ball control statistics."""

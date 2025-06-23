@@ -43,42 +43,39 @@ class TestDataModels(unittest.TestCase):
         self.assertEqual(bbox_list, [10, 20, 100, 200])
 
     def test_detection_creation(self):
-        """Test Detection creation with metadata."""
+        """Test Detection creation with direct fields."""
         bbox = BoundingBox(x1=10, y1=20, x2=100, y2=200)
         detection = Detection(
             bbox=bbox,
             object_type=ObjectType.PLAYER,
             confidence=0.9,
-            metadata={"track_id": 1, "team": 1},
+            track_id=1,
+            team=1,
         )
 
         self.assertEqual(detection.object_type, ObjectType.PLAYER)
         self.assertEqual(detection.confidence, 0.9)
-        self.assertEqual(detection.metadata["track_id"], 1)
-        self.assertEqual(detection.metadata["team"], 1)
+        self.assertEqual(detection.track_id, 1)
+        self.assertEqual(detection.team, 1)
 
-    def test_detection_metadata_flexibility(self):
-        """Test detection metadata can store various types of information."""
+    def test_detection_direct_fields(self):
+        """Test detection direct fields work correctly."""
         bbox = BoundingBox(x1=0, y1=0, x2=50, y2=50)
         detection = Detection(bbox=bbox)
 
-        # Test metadata is initialized as empty dict
-        self.assertIsNotNone(detection.metadata)
-        self.assertIsInstance(detection.metadata, dict)
-        self.assertEqual(len(detection.metadata), 0)
+        # Test setting various fields directly
+        detection.track_id = 42
+        detection.team = 2
+        detection.speed = 15.5
+        detection.field_position = (25.0, 40.0)
+        detection.assigned_player = None
 
-        # Test adding various metadata
-        detection.metadata["track_id"] = 42
-        detection.metadata["team"] = 2
-        detection.metadata["speed"] = 15.5
-        detection.metadata["field_position"] = (25.0, 40.0)
-        detection.metadata["assigned_player"] = None
-
-        self.assertEqual(detection.metadata["track_id"], 42)
-        self.assertEqual(detection.metadata["team"], 2)
-        self.assertEqual(detection.metadata["speed"], 15.5)
-        self.assertEqual(detection.metadata["field_position"], (25.0, 40.0))
-        self.assertIsNone(detection.metadata["assigned_player"])
+        self.assertEqual(detection.track_id, 42)
+        self.assertEqual(detection.team, 2)
+        self.assertEqual(detection.speed, 15.5)
+        self.assertEqual(detection.field_position, (25.0, 40.0))
+        self.assertIsNone(detection.assigned_player)
+        self.assertIsNone(detection.assigned_player)
 
     def test_frame_data_creation(self):
         """Test FrameData creation with detections."""

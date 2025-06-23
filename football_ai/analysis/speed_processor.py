@@ -27,10 +27,8 @@ class SpeedProcessor(Processor):
         for frame_idx, frame_data in progress_bar:
             detections = frame_data.detections or []
             for detection in detections:
-                if detection.metadata is None:
-                    detection.metadata = {}
-                track_id = detection.metadata.get("track_id")
-                field_position = detection.metadata.get("field_position")
+                track_id = detection.track_id
+                field_position = detection.field_position
                 if track_id is None or field_position is None:
                     continue
                 prev = self._previous_positions.get(track_id)
@@ -43,7 +41,7 @@ class SpeedProcessor(Processor):
                         dy = field_position[1] - prev_pos[1]
                         dist = math.hypot(dx, dy)
                         speed = dist / dt
-                detection.metadata["speed"] = speed
+                detection.speed = speed
                 self._previous_positions[track_id] = (field_position, frame_idx)
 
         progress_bar.close()
