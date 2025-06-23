@@ -26,7 +26,7 @@ class SigLIPTeamAssignmentProcessor(Processor):
         self.device = device
         self.batch_size = batch_size
         self.model_path = model_path
-        self._is_fitted = False
+        self._is_trained = False
 
         self._load_model()
         self.reducer = umap.UMAP(n_components=3, random_state=42)
@@ -119,8 +119,10 @@ class SigLIPTeamAssignmentProcessor(Processor):
 
     def process(self, video_data: VideoData) -> VideoData:
         """Assign team labels to players."""
-        if not self._is_fitted:
-            raise ValueError("Model must be trained first")
+        if not self._is_trained:
+            self.train(video_data)
+            self._is_trained = True
+           
 
         for frame in video_data.frames:
             if not frame.detections:
@@ -153,6 +155,6 @@ class SigLIPTeamAssignmentProcessor(Processor):
                 for detection, team_id in zip(player_detections, team_labels):
                     if detection.metadata is None:
                         detection.metadata = {}
-                    detection.metadata["team_id"] = int(team_id)
+                    detection.metadata["team"] = int(team_id)
 
         return video_data

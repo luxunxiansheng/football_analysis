@@ -151,7 +151,7 @@ class RendererProcessor(Processor):
                 color = (
                     (255, 0, 0) if is_goalkeeper else (255, 255, 0)
                 )  # Red for GK, Green for team 1
-            elif team == 2:
+            elif team == 0:
                 color = (
                     (0, 0, 255) if is_goalkeeper else (0, 255, 255)
                 )  # Red for GK, Blue for team 2

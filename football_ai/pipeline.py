@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 import cv2
 import numpy as np
+import torch
 from tqdm import tqdm
 
 from .config import FootballAIConfig, get_default_config
@@ -22,12 +23,13 @@ from .tracking.track_processor import TrackProcessor
 from .motion.object_motion_processor import ObjectMotionProcessor
 from .motion.camera_motion_processor import CameraMotionProcessor
 from .transformation.field_transformation_processor import FieldTransformationProcessor
-from .assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor as TeamAssignmentProcessor
+from .assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor 
 
 from .assignment.ball_assignment_processor import BallAssignmentProcessor
 from .analysis.speed_processor import SpeedProcessor
 from .rendering.renderer_processor import RendererProcessor
 from .storing.video_writer_processor import VideoWriterProcessor
+from football_ai.assignment import team_assignment_processor
 
 
 class FootballAnalysisPipeline:
@@ -112,7 +114,17 @@ class FootballAnalysisPipeline:
         )
 
         # Team and ball assignment
-        self.processors.append(TeamAssignmentProcessor(self.config.model.team_model_path))
+        
+        
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        team_assignment_processor = SigLIPTeamAssignmentProcessor(
+            self.config.model.team_model_path,
+            device=device,
+            batch_size=self.config.model.team_batch_size,
+        )
+
+        self.processors.append(team_assignment_processor)
+  
         self.processors.append(
             BallAssignmentProcessor(
                 max_distance=self.config.possession.possession_distance

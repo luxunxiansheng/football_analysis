@@ -27,6 +27,8 @@ class ModelConfig:
 
     # Team Assignment Model Configuration
     team_model_path: str = "models/embed/siglip-base-patch16-224"
+    team_n_clusters: int = 2  # Number of teams to detect
+    team_batch_size: int = 16
 
     # YOLO Keypoint Model Configuration
     field_model_path: str = "models/pose/best.pt"
