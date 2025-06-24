@@ -23,12 +23,12 @@ class ModelConfig:
     confidence_threshold: float = 0.3
     iou_threshold: float = 0.45
     max_detections: int = 1000
-    device: str = "auto"  # "auto", "cpu", "cuda", "mps"
+    device: str = "cuda"  # Force GPU usage for RTX 4090
 
     # Team Assignment Model Configuration
     team_model_path: str = "models/embed/siglip-base-patch16-224"
     team_n_clusters: int = 2  # Number of teams to detect
-    team_batch_size: int = 16
+    team_batch_size: int = 32  # Increased batch size for RTX 4090
 
     # YOLO Keypoint Model Configuration
     field_model_path: str = "models/pose/best.pt"
@@ -121,6 +121,209 @@ class TeamAnalysisConfig:
 
 
 @dataclass
+class PitchConfig:
+    width: int = 7000  # [cm]
+    length: int = 12000  # [cm]
+    penalty_box_width: int = 4100  # [cm]
+    penalty_box_length: int = 2015  # [cm]
+    goal_box_width: int = 1832  # [cm]
+    goal_box_length: int = 550  # [cm]
+    centre_circle_radius: int = 915  # [cm]
+    penalty_spot_distance: int = 1100  # [cm]
+
+    @property
+    def vertices(self) -> List[Tuple[int, int]]:
+        return [
+            (0, 0),  # 1
+            (0, int((self.width - self.penalty_box_width) / 2)),  # 2
+            (0, int((self.width - self.goal_box_width) / 2)),  # 3
+            (0, int((self.width + self.goal_box_width) / 2)),  # 4
+            (0, int((self.width + self.penalty_box_width) / 2)),  # 5
+            (0, self.width),  # 6
+            (self.goal_box_length, int((self.width - self.goal_box_width) / 2)),  # 7
+            (self.goal_box_length, int((self.width + self.goal_box_width) / 2)),  # 8
+            (self.penalty_spot_distance, int(self.width / 2)),  # 9
+            (
+                self.penalty_box_length,
+                int((self.width - self.penalty_box_width) / 2),
+            ),  # 10
+            (
+                self.penalty_box_length,
+                int((self.width - self.goal_box_width) / 2),
+            ),  # 11
+            (
+                self.penalty_box_length,
+                int((self.width + self.goal_box_width) / 2),
+            ),  # 12
+            (
+                self.penalty_box_length,
+                int((self.width + self.penalty_box_width) / 2),
+            ),  # 13
+            (int(self.length / 2), 0),  # 14
+            (
+                int(self.length / 2),
+                int(self.width / 2 - self.centre_circle_radius),
+            ),  # 15
+            (
+                int(self.length / 2),
+                int(self.width / 2 + self.centre_circle_radius),
+            ),  # 16
+            (int(self.length / 2), self.width),  # 17
+            (
+                self.length - self.penalty_box_length,
+                int((self.width - self.penalty_box_width) / 2),
+            ),  # 18
+            (
+                self.length - self.penalty_box_length,
+                int((self.width - self.goal_box_width) / 2),
+            ),  # 19
+            (
+                self.length - self.penalty_box_length,
+                int((self.width + self.goal_box_width) / 2),
+            ),  # 20
+            (
+                self.length - self.penalty_box_length,
+                int((self.width + self.penalty_box_width) / 2),
+            ),  # 21
+            (self.length - self.penalty_spot_distance, int(self.width / 2)),  # 22
+            (
+                self.length - self.goal_box_length,
+                int((self.width - self.goal_box_width) / 2),
+            ),  # 23
+            (
+                self.length - self.goal_box_length,
+                int((self.width + self.goal_box_width) / 2),
+            ),  # 24
+            (self.length, 0),  # 25
+            (self.length, int((self.width - self.penalty_box_width) / 2)),  # 26
+            (self.length, int((self.width - self.goal_box_width) / 2)),  # 27
+            (self.length, int((self.width + self.goal_box_width) / 2)),  # 28
+            (self.length, int((self.width + self.penalty_box_width) / 2)),  # 29
+            (self.length, self.width),  # 30
+            (
+                int(self.length / 2 - self.centre_circle_radius),
+                int(self.width / 2),
+            ),  # 31
+            (
+                int(self.length / 2 + self.centre_circle_radius),
+                int(self.width / 2),
+            ),  # 32
+        ]
+
+    edges: List[Tuple[int, int]] = field(
+        default_factory=lambda: [
+            (1, 2),
+            (2, 3),
+            (3, 4),
+            (4, 5),
+            (5, 6),
+            (7, 8),
+            (10, 11),
+            (11, 12),
+            (12, 13),
+            (14, 15),
+            (15, 16),
+            (16, 17),
+            (18, 19),
+            (19, 20),
+            (20, 21),
+            (23, 24),
+            (25, 26),
+            (26, 27),
+            (27, 28),
+            (28, 29),
+            (29, 30),
+            (1, 14),
+            (2, 10),
+            (3, 7),
+            (4, 8),
+            (5, 13),
+            (6, 17),
+            (14, 25),
+            (18, 26),
+            (23, 27),
+            (24, 28),
+            (21, 29),
+            (17, 30),
+        ]
+    )
+
+    labels: List[str] = field(
+        default_factory=lambda: [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+            "13",
+            "15",
+            "16",
+            "17",
+            "18",
+            "20",
+            "21",
+            "22",
+            "23",
+            "24",
+            "25",
+            "26",
+            "27",
+            "28",
+            "29",
+            "30",
+            "31",
+            "32",
+            "14",
+            "19",
+        ]
+    )
+
+    colors: List[str] = field(
+        default_factory=lambda: [
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#FF1493",
+            "#00BFFF",
+            "#00BFFF",
+            "#00BFFF",
+            "#00BFFF",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#FF6347",
+            "#00BFFF",
+            "#00BFFF",
+        ]
+    )
+
+
+@dataclass
 class PossessionConfig:
     """Configuration for ball possession analysis."""
 
@@ -141,8 +344,6 @@ class PossessionConfig:
 @dataclass
 class CameraConfig:
     """Configuration for camera motion tracking."""
-
-    
 
     # Feature Detection
     max_features: int = 100
@@ -257,8 +458,8 @@ class ProcessingConfig:
     output_directory: str = "outputs/data"
 
     # Performance Settings
-    batch_size: int = 1
-    num_workers: int = 4
+    batch_size: int = 8  # Increased for GPU processing
+    num_workers: int = 8  # Increased for RTX 4090
     use_gpu_acceleration: bool = True
 
     # Caching
@@ -491,6 +692,12 @@ def get_default_config() -> FootballAIConfig:
     default_keypoint_model_path = "/workspaces/football_analysis/models/pose/best.pt"
     if Path(default_keypoint_model_path).exists():
         config.model.field_model_path = default_keypoint_model_path
+
+    default_team_model_path = (
+        "/workspaces/football_analysis/models/embed/siglip-base-patch16-224"
+    )
+    if Path(default_team_model_path).exists():
+        config.model.team_model_path = default_team_model_path
 
     return config
 
