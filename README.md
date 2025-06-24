@@ -1,71 +1,100 @@
-# Football AI System
+# Football AI System - Game-Centric Architecture
 
 ## Introduction
 
-This project provides a comprehensive football video analysis system built with modern software engineering practices. The system detects and tracks players, referees, and footballs using state-of-the-art AI models, assigns players to teams based on jersey colors, analyzes ball possession, tracks camera movement, and provides real-world measurements through perspective transformation.
+This project provides a comprehensive football video analysis system with a modern **game-centric architecture**. The system detects and tracks players, referees, and footballs using state-of-the-art AI models, assigns players to teams, analyzes ball possession, and provides comprehensive match analytics.
 
-The system has been completely rewritten with a clean, modular architecture that replaces the original notebook-based approach with maintainable, extensible, and production-ready code.
+The system has been completely refactored from a video-centric pipeline to a **game-centric architecture** where the `Game` is the core entity and video analysis is just one of many possible analysis sources.
 
 ![Screenshot](output_videos/screenshot.png)
+
+## 🏗️ New Architecture
+
+### Game-Centric Design
+- **Game as Central Entity**: All analysis data flows into and is organized around `Game` objects
+- **Multiple Analysis Sources**: Video, GPS, manual annotations, official data, etc.
+- **Modular Design**: Clear separation between game logic and analysis processors
+- **Extensible**: Easy to add new analysis sources without affecting existing code
+
+### Key Benefits
+- **Data Integration**: Combine multiple data sources in a single Game object
+- **Real-time Support**: Architecture supports live analysis and data feeds
+- **Scalability**: Enterprise-ready design that can handle complex workflows
+- **Maintainability**: Better code organization and reduced coupling
 
 ## Features
 
 - **Object Detection & Tracking**: YOLO-based detection with ByteTrack multi-object tracking
-- **Team Assignment**: K-means clustering for automatic team color detection and player assignment
+- **Team Assignment**: SigLIP-based team color detection and player assignment
 - **Ball Possession Analysis**: Distance-based possession detection with temporal smoothing
 - **Camera Motion Tracking**: Feature-based camera movement compensation
 - **Coordinate Transformation**: Perspective transformation for real-world measurements
 - **Speed & Distance Calculation**: Player movement analysis in meters and km/h
 - **Professional Visualization**: High-quality video annotations and overlays
-- **🆕 Configuration System**: Comprehensive dataclass-based configuration with presets
-
-## Architecture
-
-The modern system follows clean architecture principles with:
-
-- **Domain Models**: Core data structures and business logic
-- **Modular Components**: Separate modules for detection, tracking, analysis, etc.
-- **Abstract Interfaces**: Clear contracts for extensibility
-- **Type Safety**: Full type hints throughout the codebase
-- **Error Handling**: Robust error recovery and logging
-- **Performance Optimization**: Efficient processing pipeline with caching
-- **🆕 Flexible Configuration**: Type-safe, hierarchical configuration system
+- **🆕 Game-Centric Architecture**: Games as central entities with multiple analysis sources
+- **🆕 Comprehensive Analytics**: Team formations, possession, heat maps, and more
 
 ## Quick Start
 
-### Configuration-Based Usage (Recommended)
+### Game-Centric Usage (Recommended)
 
 ```python
-from football_ai import FootballAnalysisPipeline
-from football_ai.config import get_broadcast_config
+from football_ai.sources.video import VideoAnalysisProcessor
+from football_ai.game import GameFactory
+from football_ai.utils.config_factory import ConfigFactory
 
-# Use a predefined configuration
-config = get_broadcast_config()
-config.update_paths(
-    model_path="models/best.pt",
+# Create configuration
+config = ConfigFactory.create_demo_config(
+    model_path="models/detect/best.pt",
     input_video_path="input_videos/match.mp4",
-    output_video_path="output_videos/annotated.mp4"
+    output_video_path="outputs/videos/analyzed.mp4"
 )
 
-# Initialize with configuration
-pipeline = FootballAnalysisPipeline(config=config)
-
-# Process the video
-results = pipeline.process_video(
-    video_path=config.processing.input_video_path,
-    output_video_path=config.processing.output_video_path
+# Method 1: Create game from video analysis
+processor = VideoAnalysisProcessor(config=config)
+game = processor.create_game_from_video(
+    video_path="input_videos/match.mp4",
+    home_team="Barcelona",
+    away_team="Real Madrid"
 )
+
+# Method 2: Create game first, then analyze
+game = GameFactory.create_from_video(
+    video_path="input_videos/match.mp4",
+    home_team_name="Team A",
+    away_team_name="Team B"
+)
+game = processor.analyze_video_for_game(game, "input_videos/match.mp4")
+
+# Access game data
+summary = processor.get_analysis_summary(game)
+possession = game.calculate_possession()
+events = game.get_events_by_type("goal")
 ```
 
-### Basic Usage (Legacy Support)
+### Advanced Configuration
 
 ```python
-from football_ai import FootballAnalysisPipeline
+from football_ai import get_broadcast_config, ConfigFactory
 
-# Initialize the pipeline
-pipeline = FootballAnalysisPipeline(
-    model_path="models/best.pt",
-    output_dir="output"
+# Use pre-configured setups for different scenarios
+config = get_broadcast_config()  # High quality for broadcast
+config = get_fast_processing_config()  # Speed-optimized
+config = get_high_accuracy_config()  # Maximum precision
+
+# Or create custom configurations
+config = ConfigFactory.create_demo_config(
+    model_path="models/detect/best.pt",
+    input_video_path="input_videos/match.mp4",
+    output_video_path="outputs/annotated.mp4"
+)
+
+# Process with custom configuration
+processor = VideoAnalysisProcessor(config=config)
+game = processor.create_game_from_video(
+    video_path=config.processing.input_video_path,
+    home_team="Arsenal",
+    away_team="Liverpool"
 )
 
 # Process a video

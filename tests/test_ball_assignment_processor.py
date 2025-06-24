@@ -4,11 +4,11 @@ from test_utils import (
     create_test_video_data,
     run_standard_pipeline_test,
 )
-from football_ai.motion.object_motion_processor import ObjectMotionProcessor
-from football_ai.assignment.team_assignment_processor import (
+from football_ai.sources.video.processors.motion.object_motion_processor import ObjectMotionProcessor
+from football_ai.sources.video.processors.assignment.team_assignment_processor import (
     SigLIPTeamAssignmentProcessor as TeamAssignmentProcessor,
 )
-from football_ai.assignment.ball_assignment_processor import BallAssignmentProcessor
+from football_ai.sources.video.processors.assignment.ball_assignment_processor import BallAssignmentProcessor
 
 
 def test_ball_assignment_processor():

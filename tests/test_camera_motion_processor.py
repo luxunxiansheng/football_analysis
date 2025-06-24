@@ -1,6 +1,6 @@
 import cv2
 import os
-from football_ai.motion.camera_motion_processor import CameraMotionProcessor
+from football_ai.sources.video.processors.motion.camera_motion_processor import CameraMotionProcessor
 from football_ai.domain.data_models import VideoData, FrameData
 
 

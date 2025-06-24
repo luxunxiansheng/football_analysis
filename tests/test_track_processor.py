@@ -1,7 +1,7 @@
 import cv2
 import os
-from football_ai.detection.object_detection_processor import ObjectDetectionProcessor
-from football_ai.tracking.track_processor import TrackProcessor
+from football_ai.sources.video.processors.detection.object_detection_processor import ObjectDetectionProcessor
+from football_ai.sources.video.processors.tracking.track_processor import TrackProcessor
 from football_ai.domain.data_models import VideoData, FrameData
 
 

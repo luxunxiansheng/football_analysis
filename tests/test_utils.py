@@ -8,8 +8,8 @@ import numpy as np
 from typing import List, Tuple
 
 from football_ai.domain.data_models import VideoData, FrameData
-from football_ai.detection.object_detection_processor import ObjectDetectionProcessor
-from football_ai.tracking.track_processor import TrackProcessor
+from football_ai.sources.video.processors.detection.object_detection_processor import ObjectDetectionProcessor
+from football_ai.sources.video.processors.tracking.track_processor import TrackProcessor
 
 
 def get_test_video_path() -> str:

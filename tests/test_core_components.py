@@ -11,11 +11,9 @@ import json
 from pathlib import Path
 import numpy as np
 
-from football_ai.domain.data_models import (
-    VideoData,
-    FrameData,
-    Detection,
-    BoundingBox,
+from football_ai.domain import (
+    Video as VideoData,
+    Frame as FrameData,
     ObjectType,
 )
 from football_ai.config import (

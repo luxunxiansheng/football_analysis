@@ -4,12 +4,12 @@ Core interfaces for the modern football analysis system (modular pipeline only).
 
 from abc import ABC, abstractmethod
 from typing import Any
-from .data_models import VideoData
+from .video import Video
 
 
 class Processor(ABC):
     @abstractmethod
-    def process(self, data: VideoData) -> VideoData:
+    def process(self, data: Video) -> Video:
         """
         Process the input VideoData and return the result.
         """

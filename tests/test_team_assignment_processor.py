@@ -1,10 +1,10 @@
 import cv2
 import os
 import numpy as np
-from football_ai.detection.object_detection_processor import ObjectDetectionProcessor
-from football_ai.tracking.track_processor import TrackProcessor
-from football_ai.motion.object_motion_processor import ObjectMotionProcessor
-from football_ai.assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor as TeamAssignmentProcessor
+from football_ai.sources.video.processors.detection.object_detection_processor import ObjectDetectionProcessor
+from football_ai.sources.video.processors.tracking.track_processor import TrackProcessor
+from football_ai.sources.video.processors.motion.object_motion_processor import ObjectMotionProcessor
+from football_ai.sources.video.processors.assignment.team_assignment_processor import SigLIPTeamAssignmentProcessor as TeamAssignmentProcessor
 
 from football_ai.domain.data_models import VideoData, FrameData
 
