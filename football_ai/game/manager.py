@@ -1,8 +1,9 @@
 """
 Game Manager - High-level management of Game instances and analysis workflows.
 
-This module provides the main interface for working with Games, including
-loading, processing, analysis, and persistence.
+This module provides the main interface for working with Games in the
+game-centric architecture, supporting multiple analysis sources and
+comprehensive match analytics.
 """
 
 from typing import Dict, List, Optional, Any
@@ -16,10 +17,11 @@ from .factory import GameFactory
 
 class GameManager:
     """
-    Central manager for Game instances and analysis workflows.
+    Central manager for Game instances and comprehensive match analysis.
 
-    This replaces the old video-centric pipeline with a game-centric approach
-    where analysis sources (video, GPS, etc.) contribute data to games.
+    Provides high-level APIs for creating, managing, and analyzing games
+    from multiple data sources including video, GPS, manual annotations,
+    and future analysis sources.
     """
 
     def __init__(self):

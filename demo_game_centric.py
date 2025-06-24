@@ -1,8 +1,8 @@
 """
-Game-Centric Football Analysis Demo
+Football AI - Game-Centric Analysis Demo
 
-This demonstrates the new game-centric architecture where Game is the core model
-and video is just one analysis source.
+Demonstrates modern football analysis using the game-centric architecture.
+Shows how to analyze matches through multiple sources with Games as central entities.
 """
 
 if __name__ == "__main__":
@@ -17,14 +17,14 @@ if __name__ == "__main__":
         output_video_path="outputs/videos/game_demo.mp4",
     )
 
-    print("🏈 Game-Centric Football Analysis Demo")
+    print("🏈 Football AI - Game-Centric Analysis Demo")
     print("=" * 50)
-    print("New Architecture: Game -> Sources -> Video Analysis")
+    print("Modern Architecture: Game → Sources → Comprehensive Analysis")
     print()
 
     try:
-        # Method 1: Create game from video in one step
-        print("📹 Method 1: Create game from video analysis")
+        # Method 1: Direct video analysis and game creation
+        print("📹 Method 1: Video-to-Game Analysis Pipeline")
         video_processor = VideoAnalysisProcessor(config=config)
 
         game = video_processor.create_game_from_video(
