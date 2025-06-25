@@ -6,10 +6,10 @@ Shows how to analyze matches through multiple sources with Games as central enti
 """
 
 if __name__ == "__main__":
-    from football_ai.analysis_sources.video.video_analysis_processor import (
+    from football_ai.sources.video.video_analysis_processor import (
         VideoAnalysisProcessor,
     )
-    from football_ai.game_management.game_factory import GameFactory
+    from football_ai.game.game_factory import GameFactory
     from football_ai.utilities.config_factory import ConfigFactory
 
     # Create configuration

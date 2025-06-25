@@ -18,7 +18,7 @@ from .config import (
 )
 
 # Game-centric architecture (RECOMMENDED)
-from .game_management import (
+from .game import (
     Game,
     Team,
     MatchEvent,
@@ -28,7 +28,7 @@ from .game_management import (
 )
 
 # Video analysis components
-from .analysis_sources.video import VideoAnalysisProcessor, VideoLoader, VideoPipeline
+from .sources.video import VideoAnalysisProcessor, VideoLoader, VideoPipeline
 
 # Utilities
 from .utilities.config_factory import ConfigFactory

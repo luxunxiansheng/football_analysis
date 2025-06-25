@@ -9,10 +9,10 @@ from pathlib import Path
 
 from .video_loader import VideoLoader
 from .video_pipeline import VideoPipeline
-from ...domain.video import Video
-from ...domain.game import Game, AnalysisSource
+from ...core_models.video import Video
+from ...core_models.game import Game, AnalysisSource
 from ...config import FootballAIConfig, get_default_config
-from ...utils import setup_logger
+from ...utilities import setup_logger
 
 
 class VideoAnalysisProcessor:

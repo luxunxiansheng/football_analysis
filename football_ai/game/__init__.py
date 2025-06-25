@@ -5,7 +5,14 @@ This module contains the core game logic and management functionality.
 The Game is the central entity around which all football analysis revolves.
 """
 
-from ..domain.game import Game, Team, MatchEvent, AnalysisSource, MatchType, MatchStatus
+from ..core_models.game import (
+    Game,
+    Team,
+    MatchEvent,
+    AnalysisSource,
+    MatchType,
+    MatchStatus,
+)
 from .game_factory import GameFactory
 from .game_manager import GameManager
 

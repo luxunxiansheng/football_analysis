@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import numpy as np
 
-from football_ai.domain import (
+from football_ai.core_models import (
     Video as VideoData,
     Frame as FrameData,
     ObjectType,

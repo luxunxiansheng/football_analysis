@@ -9,26 +9,26 @@ from typing import Optional, List
 from pathlib import Path
 
 from ...config import FootballAIConfig, get_default_config
-from ...domain.video import Video
-from ...domain.interfaces import Processor
-from ...utils import setup_logger, create_progress_bar
+from ...core_models.video import Video
+from ...core_models.interfaces import Processor
+from ...utilities import setup_logger, create_progress_bar
 
 # Import all video analysis processors
-from .processors.detection.yolo_detector import ObjectDetectionProcessor
-from .processors.tracking.byte_tracker import TrackProcessor
-from .processors.motion.speed_calculator import ObjectMotionProcessor
-from .processors.motion.camera_stabilizer import CameraMotionProcessor
-from .processors.transformation.coordinate_transformer import (
+from .processors.object_detection.yolo_detector import ObjectDetectionProcessor
+from .processors.object_tracking.byte_tracker import TrackProcessor
+from .processors.motion_analysis.speed_calculator import ObjectMotionProcessor
+from .processors.motion_analysis.camera_stabilizer import CameraMotionProcessor
+from .processors.coordinate_transformation.coordinate_transformer import (
     FieldTransformationProcessor,
 )
-from .processors.assignment.siglip_team_classifier import (
+from .processors.team_classification.siglip_team_classifier import (
     SigLIPTeamAssignmentProcessor,
 )
-from .processors.assignment.possession_analyzer import BallAssignmentProcessor
-from .processors.analysis.speed_analyzer import SpeedProcessor
-from .processors.analysis.possession_tracker import BallControlProcessor
-from .processors.rendering.video_annotator import RendererProcessor
-from .processors.storing.video_exporter import VideoWriterProcessor
+from .processors.team_classification.possession_analyzer import BallAssignmentProcessor
+from .processors.match_analysis.speed_analyzer import SpeedProcessor
+from .processors.match_analysis.possession_tracker import BallControlProcessor
+from .processors.video_rendering.video_annotator import RendererProcessor
+from .processors.video_export.video_exporter import VideoWriterProcessor
 
 
 class VideoPipeline:
