@@ -11,7 +11,6 @@ from .video_loader import VideoLoader
 from .video_pipeline import VideoPipeline
 from ...core_models.video import Video
 from ...core_models.game import Game, AnalysisSource
-from ...config import FootballAIConfig, get_default_config
 from ...utilities import setup_logger
 
 
@@ -24,12 +23,71 @@ class VideoAnalysisProcessor:
     pipeline and the new game-centric approach.
     """
 
-    def __init__(self, config: Optional[FootballAIConfig] = None):
-        self.config = config or get_default_config()
-        self.logger = setup_logger("VideoAnalysisProcessor", self.config.log_level)
+    def __init__(
+        self,
+        # Core required parameters
+        model_path: str,
+        # Detection parameters
+        confidence_threshold: float = 0.3,
+        iou_threshold: float = 0.45,
+        device: str = "cuda",
+        # Tracking parameters
+        track_threshold: float = 0.4,
+        track_buffer: int = 60,
+        # Processing parameters
+        max_detections: int = 1000,
+        log_level: str = "INFO",
+        # Optional advanced parameters
+        enable_team_classification: bool = True,
+        enable_ball_tracking: bool = True,
+        team_model_path: Optional[str] = None,
+    ):
+        """
+        Initialize VideoAnalysisProcessor with explicit parameters.
 
-        self.loader = VideoLoader(self.config.log_level)
-        self.pipeline = VideoPipeline(self.config)
+        Args:
+            model_path: Path to YOLO detection model
+            confidence_threshold: Detection confidence threshold (0.0-1.0)
+            iou_threshold: IoU threshold for non-maximum suppression
+            device: Device to run models on ("cuda", "cpu", or "mps")
+            track_threshold: Tracking confidence threshold
+            track_buffer: Number of frames to keep lost tracks
+            max_detections: Maximum detections per frame
+            log_level: Logging level ("DEBUG", "INFO", "WARNING", "ERROR")
+            enable_team_classification: Whether to classify team colors
+            enable_ball_tracking: Whether to track the ball
+            team_model_path: Path to team classification model (optional)
+        """
+        # Store parameters
+        self.model_path = model_path
+        self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.device = device
+        self.track_threshold = track_threshold
+        self.track_buffer = track_buffer
+        self.max_detections = max_detections
+        self.enable_team_classification = enable_team_classification
+        self.enable_ball_tracking = enable_ball_tracking
+        self.team_model_path = team_model_path or "models/embed/siglip-base-patch16-224"
+
+        # Setup logging
+        self.logger = setup_logger("VideoAnalysisProcessor", log_level)
+
+        # Initialize components with explicit parameters
+        self.loader = VideoLoader(log_level=log_level)
+        self.pipeline = VideoPipeline(
+            model_path=model_path,
+            confidence_threshold=confidence_threshold,
+            iou_threshold=iou_threshold,
+            device=device,
+            track_threshold=track_threshold,
+            track_buffer=track_buffer,
+            max_detections=max_detections,
+            enable_team_classification=enable_team_classification,
+            enable_ball_tracking=enable_ball_tracking,
+            team_model_path=self.team_model_path,
+            log_level=log_level,
+        )
 
     def analyze_video_for_game(
         self,

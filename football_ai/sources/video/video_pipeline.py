@@ -8,7 +8,6 @@ using all the detection, tracking, and analysis processors.
 from typing import Optional, List
 from pathlib import Path
 
-from ...config import FootballAIConfig, get_default_config
 from ...core_models.video import Video
 from ...core_models.interfaces import Processor
 from ...utilities import setup_logger, create_progress_bar
@@ -39,9 +38,68 @@ class VideoPipeline:
     video analysis capabilities within the game-centric architecture.
     """
 
-    def __init__(self, config: Optional[FootballAIConfig] = None):
-        self.config = config or get_default_config()
-        self.logger = setup_logger("VideoPipeline", self.config.log_level)
+    def __init__(
+        self,
+        # Core required parameters
+        model_path: str,
+        # Detection parameters
+        confidence_threshold: float = 0.3,
+        iou_threshold: float = 0.45,
+        device: str = "cuda",
+        # Tracking parameters
+        track_threshold: float = 0.4,
+        track_buffer: int = 60,
+        # Processing parameters
+        max_detections: int = 1000,
+        log_level: str = "INFO",
+        # Feature toggles
+        enable_team_classification: bool = True,
+        enable_ball_tracking: bool = True,
+        enable_motion_analysis: bool = True,
+        enable_field_transformation: bool = True,
+        enable_video_rendering: bool = True,
+        # Model paths
+        team_model_path: str = "models/embed/siglip-base-patch16-224",
+        field_model_path: str = "models/pose/best.pt",
+    ):
+        """
+        Initialize VideoPipeline with explicit parameters.
+
+        Args:
+            model_path: Path to main YOLO detection model
+            confidence_threshold: Detection confidence threshold
+            iou_threshold: IoU threshold for NMS
+            device: Device to run on ("cuda", "cpu", "mps")
+            track_threshold: Tracking confidence threshold
+            track_buffer: Frames to keep lost tracks
+            max_detections: Max detections per frame
+            log_level: Logging level
+            enable_team_classification: Enable team color classification
+            enable_ball_tracking: Enable ball tracking
+            enable_motion_analysis: Enable motion analysis
+            enable_field_transformation: Enable field coordinate transformation
+            enable_video_rendering: Enable video annotation rendering
+            team_model_path: Path to team classification model
+            field_model_path: Path to field detection model
+        """
+        # Store parameters
+        self.model_path = model_path
+        self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.device = device
+        self.track_threshold = track_threshold
+        self.track_buffer = track_buffer
+        self.max_detections = max_detections
+        self.enable_team_classification = enable_team_classification
+        self.enable_ball_tracking = enable_ball_tracking
+        self.enable_motion_analysis = enable_motion_analysis
+        self.enable_field_transformation = enable_field_transformation
+        self.enable_video_rendering = enable_video_rendering
+        self.team_model_path = team_model_path
+        self.field_model_path = field_model_path
+
+        # Setup logging
+        self.logger = setup_logger("VideoPipeline", log_level)
         self.processors: List[Processor] = []
         self._build_processors()
 
@@ -49,49 +107,65 @@ class VideoPipeline:
         """Build the video processing pipeline based on configuration."""
         self.processors = []
 
-        # Core detection and tracking
+        # Core detection and tracking - using explicit parameters
         self.processors.append(
-            ObjectDetectionProcessor(self.config.model.player_model_path)
+            ObjectDetectionProcessor(
+                model_path=self.model_path,
+                confidence_threshold=self.confidence_threshold,
+                iou_threshold=self.iou_threshold,
+                device=self.device,
+                max_detections=self.max_detections,
+            )
         )
 
         self.processors.append(
             TrackProcessor(
-                track_activation_threshold=self.config.tracking.track_activation_threshold,
-                lost_track_buffer=self.config.tracking.lost_track_buffer,
-                minimum_matching_threshold=self.config.tracking.minimum_matching_threshold,
-                frame_rate=self.config.tracking.frame_rate,
-                minimum_consecutive_frames=self.config.tracking.minimum_consecutive_frames,
-                min_track_length=self.config.tracking.min_track_length,
+                track_activation_threshold=self.track_threshold,
+                lost_track_buffer=self.track_buffer,
+                minimum_matching_threshold=0.75,  # Reasonable default
+                frame_rate=30,  # Standard video frame rate
+                minimum_consecutive_frames=1,
+                min_track_length=5,
             )
         )
 
-        # Motion analysis
-        self.processors.append(ObjectMotionProcessor())
-        self.processors.append(CameraMotionProcessor())
+        # Motion analysis - if enabled
+        if self.enable_motion_analysis:
+            self.processors.append(ObjectMotionProcessor())
+            self.processors.append(CameraMotionProcessor())
 
-        # Field transformation (if configured)
-        if hasattr(self.config, "field_corners") and self.config.field_corners:
+        # Field transformation - if enabled
+        if self.enable_field_transformation:
             self.processors.append(
-                FieldTransformationProcessor(pixel_corners=self.config.field_corners)
+                FieldTransformationProcessor(
+                    model_path=self.field_model_path, device=self.device
+                )
             )
 
-        # Team and ball assignment
-        team_assignment_processor = SigLIPTeamAssignmentProcessor(
-            model_path=self.config.model.team_model_path,
-            batch_size=self.config.model.team_batch_size,
-        )
-        self.processors.append(team_assignment_processor)
-
-        self.processors.append(
-            BallAssignmentProcessor(
-                max_distance=self.config.possession.possession_distance
+        # Team assignment - if enabled
+        if self.enable_team_classification:
+            team_assignment_processor = SigLIPTeamAssignmentProcessor(
+                model_path=self.team_model_path,
+                batch_size=32,  # Reasonable default
+                device=self.device,
             )
-        )
+            self.processors.append(team_assignment_processor)
 
-        self.processors.append(BallControlProcessor())
+        # Ball tracking - if enabled
+        if self.enable_ball_tracking:
+            self.processors.append(
+                BallAssignmentProcessor(
+                    max_distance=50.0  # Reasonable default distance
+                )
+            )
+            self.processors.append(BallControlProcessor())
 
-        # Analysis
+        # Analysis processors
         self.processors.append(SpeedProcessor())
+
+        # Video rendering - if enabled
+        if self.enable_video_rendering:
+            self.processors.append(RendererProcessor())
 
         self.logger.info(f"Built video pipeline with {len(self.processors)} processors")
 

@@ -6,31 +6,35 @@ Shows how to analyze matches through multiple sources with Games as central enti
 """
 
 if __name__ == "__main__":
-    from football_ai.sources.video.video_analysis_processor import (
-        VideoAnalysisProcessor,
+    from football_ai.sources.video.video_analysis_factory import (
+        create_demo_processor,
+        create_high_accuracy_processor,
+        create_fast_processor,
     )
     from football_ai.game.game_factory import GameFactory
-    from football_ai.utilities.config_factory import ConfigFactory
-
-    # Create configuration
-    config = ConfigFactory.create_demo_config(
-        model_path="models/detect/best.pt",
-        input_video_path="input_videos/08fd33_4.mp4",
-        output_video_path="outputs/videos/game_demo.mp4",
-    )
 
     print("🏈 Football AI - Game-Centric Analysis Demo")
     print("=" * 50)
     print("Modern Architecture: Game → Sources → Comprehensive Analysis")
+    print("✨ Now using explicit parameters instead of config objects!")
     print()
 
+    # Input parameters (no more config objects!)
+    model_path = "models/detect/best.pt"
+    input_video = "input_videos/08fd33_4.mp4"
+    output_video = "outputs/videos/game_demo.mp4"
+
     try:
-        # Method 1: Direct video analysis and game creation
-        print("📹 Method 1: Video-to-Game Analysis Pipeline")
-        video_processor = VideoAnalysisProcessor(config=config)
+        # Method 1: Demo processor with explicit parameters
+        print("📹 Method 1: Demo Video Analysis (Explicit Parameters)")
+        video_processor = create_demo_processor(
+            model_path=model_path,
+            input_video_path=input_video,
+            output_video_path=output_video,
+        )
 
         game = video_processor.create_game_from_video(
-            video_path=config.processing.input_video_path,
+            video_path=input_video,
             home_team="Home Team",
             away_team="Away Team",
             competition="Demo League",
@@ -57,12 +61,18 @@ if __name__ == "__main__":
         )
         print()
 
-        # Method 2: Create game first, then analyze video
-        print("📹 Method 2: Create game first, then analyze video")
+        # Method 2: High accuracy processor example
+        print("📹 Method 2: High Accuracy Analysis (Explicit Parameters)")
+
+        # Create a high-accuracy processor with explicit parameters
+        high_accuracy_processor = create_high_accuracy_processor(
+            model_path=model_path,
+            team_model_path="models/embed/siglip-base-patch16-224",
+        )
 
         # Create a new game using GameFactory
         game2 = GameFactory.create_from_video(
-            video_path=config.processing.input_video_path,
+            video_path=input_video,
             home_team_name="Team A",
             away_team_name="Team B",
             competition="Demo Cup",
@@ -72,9 +82,9 @@ if __name__ == "__main__":
         print(f"✅ Game created: {game2.game_id}")
 
         # Now analyze the video for this game
-        game2 = video_processor.analyze_video_for_game(
+        game2 = high_accuracy_processor.analyze_video_for_game(
             game=game2,
-            video_path=config.processing.input_video_path,
+            video_path=input_video,
             output_path="outputs/videos/game2_analysis.mp4",
         )
 
@@ -104,11 +114,19 @@ if __name__ == "__main__":
 
         print()
         print("🎉 Demo completed successfully!")
-        print("The new architecture allows:")
+        print("✨ Benefits of explicit parameters:")
+        print("• Clear interface - you see exactly what each component needs")
+        print("• Easy testing - just pass the parameters you want to test")
+        print("• No hidden dependencies in massive config objects")
+        print("• IDE auto-completion shows available options")
+        print("• Flexible - mix and match parameters without config overhead")
+        print()
+        print("🏗️ Architecture highlights:")
         print("• Games as central entities")
         print("• Multiple analysis sources (video, GPS, manual, etc.)")
         print("• Flexible integration of different data types")
         print("• Better separation of concerns")
+        print("• Professional-grade explicit interfaces")
 
     except Exception as e:
         print(f"❌ Error: {e}")
