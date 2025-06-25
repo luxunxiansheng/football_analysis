@@ -18,13 +18,20 @@ from .config import (
 )
 
 # Game-centric architecture (RECOMMENDED)
-from .game import Game, Team, MatchEvent, AnalysisSource, GameFactory, GameManager
+from .game_management import (
+    Game,
+    Team,
+    MatchEvent,
+    AnalysisSource,
+    GameFactory,
+    GameManager,
+)
 
 # Video analysis components
-from .sources.video import VideoAnalysisProcessor, VideoLoader, VideoPipeline
+from .analysis_sources.video import VideoAnalysisProcessor, VideoLoader, VideoPipeline
 
 # Utilities
-from .utils.config_factory import ConfigFactory
+from .utilities.config_factory import ConfigFactory
 
 __version__ = "2.0.0"
 __author__ = "Football AI Team"

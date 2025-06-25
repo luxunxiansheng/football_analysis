@@ -7,12 +7,12 @@ This processor coordinates all video analysis and integrates results into Game o
 from typing import Optional, Dict, Any
 from pathlib import Path
 
-from .loader import VideoLoader
-from .pipeline import VideoPipeline
-from ...domain.video import Video
-from ...domain.game import Game, AnalysisSource
+from .video_loader import VideoLoader
+from .video_pipeline import VideoPipeline
+from ...core_models.video import Video
+from ...core_models.game import Game, AnalysisSource
 from ...config import FootballAIConfig, get_default_config
-from ...utils import setup_logger
+from ...utilities import setup_logger
 
 
 class VideoAnalysisProcessor:
@@ -86,7 +86,7 @@ class VideoAnalysisProcessor:
         Returns:
             Game object with video analysis integrated
         """
-        from ...game.factory import GameFactory
+        from ...game_management.game_factory import GameFactory
 
         # Create game
         game = GameFactory.create_from_video(

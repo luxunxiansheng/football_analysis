@@ -9,26 +9,26 @@ from typing import Optional, List
 from pathlib import Path
 
 from ...config import FootballAIConfig, get_default_config
-from ...domain.video import Video
-from ...domain.interfaces import Processor
-from ...utils import setup_logger, create_progress_bar
+from ...core_models.video import Video
+from ...core_models.interfaces import Processor
+from ...utilities import setup_logger, create_progress_bar
 
 # Import all video analysis processors
-from .processors.detection.object_detection_processor import ObjectDetectionProcessor
-from .processors.tracking.track_processor import TrackProcessor
-from .processors.motion.object_motion_processor import ObjectMotionProcessor
-from .processors.motion.camera_motion_processor import CameraMotionProcessor
-from .processors.transformation.field_transformation_processor import (
+from .processors.object_detection.yolo_detector import ObjectDetectionProcessor
+from .processors.object_tracking.byte_tracker import TrackProcessor
+from .processors.motion_analysis.speed_calculator import ObjectMotionProcessor
+from .processors.motion_analysis.camera_stabilizer import CameraMotionProcessor
+from .processors.coordinate_transformation.coordinate_transformer import (
     FieldTransformationProcessor,
 )
-from .processors.assignment.team_assignment_processor import (
+from .processors.team_classification.siglip_team_classifier import (
     SigLIPTeamAssignmentProcessor,
 )
-from .processors.assignment.ball_assignment_processor import BallAssignmentProcessor
-from .processors.analysis.speed_processor import SpeedProcessor
-from .processors.analysis.ball_control_processor import BallControlProcessor
-from .processors.rendering.renderer_processor import RendererProcessor
-from .processors.storing.video_writer_processor import VideoWriterProcessor
+from .processors.team_classification.possession_analyzer import BallAssignmentProcessor
+from .processors.match_analysis.speed_analyzer import SpeedProcessor
+from .processors.match_analysis.possession_tracker import BallControlProcessor
+from .processors.video_rendering.video_annotator import RendererProcessor
+from .processors.video_export.video_exporter import VideoWriterProcessor
 
 
 class VideoPipeline:
