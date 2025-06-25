@@ -1,6 +1,6 @@
-from football_ai.utils import cv2, np, create_progress_bar
-from football_ai.domain import Video
-from football_ai.domain.interfaces import Processor
+from football_ai.utilities import cv2, np, create_progress_bar
+from football_ai.core_models import Video
+from football_ai.core_models.interfaces import Processor
 
 
 class VideoWriterProcessor(Processor):

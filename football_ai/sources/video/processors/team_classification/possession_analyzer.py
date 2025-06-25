@@ -1,6 +1,6 @@
-from football_ai.utils import np, create_progress_bar
-from football_ai.domain import Video, Frame
-from football_ai.domain.interfaces import Processor
+from football_ai.utilities import np, create_progress_bar
+from football_ai.core_models import Video, Frame
+from football_ai.core_models.interfaces import Processor
 
 
 class BallAssignmentProcessor(Processor):

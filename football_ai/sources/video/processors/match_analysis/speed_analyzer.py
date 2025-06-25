@@ -1,5 +1,5 @@
-from football_ai.domain import Video
-from football_ai.domain.interfaces import Processor
+from football_ai.core_models import Video
+from football_ai.core_models.interfaces import Processor
 import math
 from tqdm import tqdm
 

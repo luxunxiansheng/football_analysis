@@ -1,4 +1,4 @@
 # Transformation module
-from .field_transformation_processor import FieldTransformationProcessor
+from .coordinate_transformer import FieldTransformationProcessor
 
 __all__ = ["FieldTransformationProcessor"]

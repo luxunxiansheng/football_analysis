@@ -1,4 +1,4 @@
 # Rendering module
-from .renderer_processor import RendererProcessor
+from .video_annotator import RendererProcessor
 
 __all__ = ["RendererProcessor"]

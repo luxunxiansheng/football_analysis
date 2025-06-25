@@ -1,7 +1,7 @@
-from football_ai.utils import np, create_progress_bar
-from football_ai.domain.video import Video
-from football_ai.domain.constants import ObjectType
-from football_ai.domain.interfaces import Processor
+from football_ai.utilities import np, create_progress_bar
+from football_ai.core_models.video import Video
+from football_ai.core_models.constants import ObjectType
+from football_ai.core_models.interfaces import Processor
 
 from ultralytics import YOLO
 

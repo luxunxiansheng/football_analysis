@@ -10,8 +10,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import re
 
-from ..domain.game import Game, Team, MatchType, MatchStatus
-from ..domain import Player, Goalkeeper, Referee
+from football_ai.core_models import Game, Team, MatchType, MatchStatus, Referee
 
 
 class GameFactory:

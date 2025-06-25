@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import List, Optional
 import cv2
 
-from ...utils import create_progress_bar, setup_logger
-from ...domain.video import Video
-from ...domain.frame import Frame
+from ...utilities import create_progress_bar, setup_logger
+from ...core_models.video import Video
+from ...core_models.frame import Frame
 
 
 class VideoLoader:

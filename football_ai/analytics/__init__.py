@@ -7,15 +7,9 @@ tactical analysis, and performance metrics.
 """
 
 from .match_statistics import MatchStatisticsAnalyzer
-from .formation_analyzer import FormationAnalyzer
 from .heatmap_generator import HeatmapGenerator
-from .possession_analytics import PossessionAnalytics
-from .performance_metrics import PerformanceMetrics
 
 __all__ = [
     "MatchStatisticsAnalyzer",
-    "FormationAnalyzer",
     "HeatmapGenerator",
-    "PossessionAnalytics",
-    "PerformanceMetrics",
 ]

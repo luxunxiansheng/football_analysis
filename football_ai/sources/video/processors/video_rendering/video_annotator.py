@@ -6,10 +6,10 @@ import cv2
 import numpy as np
 from typing import Optional, Dict, Any
 from tqdm import tqdm
-from football_ai.domain.interfaces import Processor
-from football_ai.domain.video import Video
-from football_ai.domain.frame import Frame
-from football_ai.domain.constants import ObjectType
+from football_ai.core_models.interfaces import Processor
+from football_ai.core_models.video import Video
+from football_ai.core_models.frame import Frame
+from football_ai.core_models.constants import ObjectType
 
 
 class VisualConfig:

@@ -1,5 +1,5 @@
 # Motion tracking module
-from .camera_motion_processor import CameraMotionProcessor
-from .object_motion_processor import ObjectMotionProcessor
+from .camera_stabilizer import CameraMotionProcessor
+from .speed_calculator import ObjectMotionProcessor
 
 __all__ = ["CameraMotionProcessor", "ObjectMotionProcessor"]

@@ -1,7 +1,7 @@
 """Storage processors for video output."""
 
 # Storage module
-from .video_writer_processor import VideoWriterProcessor
+from .video_exporter import VideoWriterProcessor
 
 __all__ = [
     "VideoWriterProcessor",

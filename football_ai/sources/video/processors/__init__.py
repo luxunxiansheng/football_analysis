@@ -6,14 +6,14 @@ These processors handle detection, tracking, assignment, and analysis
 of football video content.
 """
 
-from .detection import ObjectDetectionProcessor
-from .tracking import TrackProcessor
-from .motion import ObjectMotionProcessor, CameraMotionProcessor
-from .transformation import FieldTransformationProcessor
-from .assignment import SigLIPTeamAssignmentProcessor, BallAssignmentProcessor
-from .analysis import SpeedProcessor, BallControlProcessor
-from .rendering import RendererProcessor
-from .storing import VideoWriterProcessor
+from .object_detection import ObjectDetectionProcessor
+from .object_tracking import TrackProcessor
+from .motion_analysis import ObjectMotionProcessor, CameraMotionProcessor
+from .coordinate_transformation import FieldTransformationProcessor
+from .team_classification import SigLIPTeamAssignmentProcessor, BallAssignmentProcessor
+from .match_analysis import SpeedProcessor, BallControlProcessor
+from .video_rendering import RendererProcessor
+from .video_export import VideoWriterProcessor
 
 __all__ = [
     "ObjectDetectionProcessor",

@@ -1,13 +1,13 @@
-from football_ai.utils import List, Optional, os, np, torch, create_progress_bar
+from football_ai.utilities import List, Optional, os, np, torch, create_progress_bar
 import umap
 from PIL import Image
 from sklearn.cluster import KMeans
 from transformers import AutoProcessor, SiglipVisionModel
 from tqdm import tqdm
 
-from football_ai.domain.interfaces import Processor
-from football_ai.domain.video import Video
-from football_ai.domain.constants import ObjectType
+from football_ai.core_models.interfaces import Processor
+from football_ai.core_models.video import Video
+from football_ai.core_models.constants import ObjectType
 
 
 class SigLIPTeamAssignmentProcessor(Processor):

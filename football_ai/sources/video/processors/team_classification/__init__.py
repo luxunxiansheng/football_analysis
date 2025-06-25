@@ -1,5 +1,5 @@
 # Assignment module
-from .ball_assignment_processor import BallAssignmentProcessor
-from .team_assignment_processor import SigLIPTeamAssignmentProcessor
+from .possession_analyzer import BallAssignmentProcessor
+from .siglip_team_classifier import SigLIPTeamAssignmentProcessor
 
 __all__ = ["BallAssignmentProcessor", "SigLIPTeamAssignmentProcessor"]

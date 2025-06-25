@@ -11,8 +11,8 @@ from pathlib import Path
 import json
 import pickle
 
-from ..domain.game import Game, AnalysisSource
-from .factory import GameFactory
+from ..core_models.game import Game, AnalysisSource
+from .game_factory import GameFactory
 
 
 class GameManager:

@@ -1,9 +1,20 @@
 from supervision.tracker.byte_tracker.core import ByteTrack
 from supervision.detection.core import Detections
 
-from football_ai.utils import np, logging, tqdm, cv2, List, Dict, Optional, Any, Set, defaultdict
-from football_ai.domain.video import Video
-from football_ai.domain.interfaces import Processor
+from football_ai.utilities import (
+    np,
+    logging,
+    tqdm,
+    cv2,
+    List,
+    Dict,
+    Optional,
+    Any,
+    Set,
+    defaultdict,
+)
+from football_ai.core_models.video import Video
+from football_ai.core_models.interfaces import Processor
 
 # Temporary Detection for backward compatibility
 from dataclasses import dataclass

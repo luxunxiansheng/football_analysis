@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import tqdm
-from football_ai.domain import Video, Frame
-from football_ai.domain.interfaces import Processor
+from football_ai.core_models import Video, Frame
+from football_ai.core_models.interfaces import Processor
 import cv2
 
 

@@ -1,4 +1,4 @@
 # Tracking module
-from .track_processor import TrackProcessor
+from .byte_tracker import TrackProcessor
 
 __all__ = ["TrackProcessor"]
