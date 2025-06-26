@@ -85,6 +85,7 @@ class VideoAnalysisProcessor:
             max_detections=max_detections,
             enable_team_classification=enable_team_classification,
             enable_ball_tracking=enable_ball_tracking,
+            enable_video_rendering=False,  # Video rendering processors are added dynamically when output_path is provided
             team_model_path=self.team_model_path,
             log_level=log_level,
         )

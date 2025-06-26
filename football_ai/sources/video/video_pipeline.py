@@ -6,7 +6,6 @@ using all the detection, tracking, and analysis processors.
 """
 
 from typing import Optional, List
-from pathlib import Path
 
 from ...core_models.video import Video
 from ...core_models.interfaces import Processor
@@ -159,9 +158,9 @@ class VideoPipeline:
         # Analysis processors
         self.processors.append(SpeedProcessor())
 
-        # Video rendering - if enabled
-        if self.enable_video_rendering:
-            self.processors.append(RendererProcessor())
+        # Note: Video rendering processors (RendererProcessor, VideoWriterProcessor)
+        # are added dynamically in process_video() when output_path is provided
+        # because they require an output_path parameter
 
         self.logger.info(f"Built video pipeline with {len(self.processors)} processors")
 
@@ -177,20 +176,32 @@ class VideoPipeline:
             Processed Video object with analysis results
         """
         try:
-            # Validate configuration if in strict mode
-            if self.config.strict_mode:
-                issues = self.config.validate()
-                if issues:
-                    raise ValueError(f"Configuration issues: {issues}")
-
             self.logger.info("Starting video analysis pipeline")
+
+            # Create a copy of processors list and add output processors if needed
+            processors_to_run = self.processors[:]
+
+            # Add rendering and output processors if output_path is provided
+            if output_path:
+                try:
+                    # Add renderer processor
+                    renderer = RendererProcessor(output_path=output_path)
+                    processors_to_run.append(renderer)
+
+                    # Add video writer processor
+                    writer = VideoWriterProcessor(output_path=output_path)
+                    processors_to_run.append(writer)
+
+                    self.logger.info(f"Added output processors for: {output_path}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to add output processors: {e}")
 
             # Process through pipeline
             progress_bar = create_progress_bar(
-                iterable=self.processors,
+                iterable=processors_to_run,
                 desc="Processing video pipeline",
                 unit="processor",
-                disable=not self.config.show_progress_bars,
+                disable=False,  # Always show progress for now
             )
 
             for i, processor in enumerate(progress_bar):
@@ -198,27 +209,18 @@ class VideoPipeline:
                 progress_bar.set_description(f"Running {processor_name}")
 
                 self.logger.info(
-                    f"Running processor {i+1}/{len(self.processors)}: {processor_name}"
+                    f"Running processor {i+1}/{len(processors_to_run)}: {processor_name}"
                 )
 
                 try:
                     video = processor.process(video)
                     self.logger.debug(f"✓ {processor_name} completed successfully")
                 except Exception as e:
-                    if self.config.strict_mode:
-                        progress_bar.close()
-                        raise RuntimeError(
-                            f"Processor {processor_name} failed: {e}"
-                        ) from e
-                    else:
-                        self.logger.error(f"⚠ {processor_name} failed: {e}")
-                        continue
+                    # For now, continue on errors but log them
+                    self.logger.error(f"⚠ {processor_name} failed: {e}")
+                    continue
 
             progress_bar.close()
-
-            # Add rendering and output if specified
-            if output_path:
-                self._add_output_processing(video, output_path)
 
             self.logger.info("✅ Video analysis pipeline completed successfully")
             return video
@@ -226,28 +228,6 @@ class VideoPipeline:
         except Exception as e:
             self.logger.error(f"❌ Video pipeline failed: {e}")
             raise
-
-    def _add_output_processing(self, video: Video, output_path: str) -> Video:
-        """Add rendering and video writing to produce output video."""
-        try:
-            # Add renderer
-            renderer = RendererProcessor(
-                output_path=output_path,
-                render_config=self.config.rendering.__dict__,
-            )
-            video = renderer.process(video)
-
-            # Add video writer
-            writer = VideoWriterProcessor(output_path=output_path)
-            video = writer.process(video)
-
-            self.logger.info(f"Output video saved to: {output_path}")
-            return video
-
-        except Exception as e:
-            self.logger.error(f"Output processing failed: {e}")
-            # Don't fail the whole pipeline for output issues
-            return video
 
     def get_processor_summary(self) -> dict:
         """Get summary of processors in the pipeline."""
@@ -260,11 +240,6 @@ class VideoPipeline:
                 }
                 for proc in self.processors
             ],
-            "config_summary": {
-                "strict_mode": self.config.strict_mode,
-                "debug_mode": self.config.debug_mode,
-                "show_progress": self.config.show_progress_bars,
-            },
         }
 
     def add_processor(self, processor: Processor) -> None:
