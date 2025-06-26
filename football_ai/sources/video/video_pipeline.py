@@ -136,11 +136,7 @@ class VideoPipeline:
 
         # Field transformation - if enabled
         if self.enable_field_transformation:
-            self.processors.append(
-                FieldTransformationProcessor(
-                    model_path=self.field_model_path, device=self.device
-                )
-            )
+            self.processors.append(FieldTransformationProcessor())
 
         # Team assignment - if enabled
         if self.enable_team_classification:

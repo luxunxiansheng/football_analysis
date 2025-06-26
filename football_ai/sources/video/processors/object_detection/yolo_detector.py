@@ -31,9 +31,19 @@ class Detection:
 
 
 class ObjectDetectionProcessor(Processor):
-    def __init__(self, model_path: str, confidence_threshold: float = 0.1):
+    def __init__(
+        self,
+        model_path: str,
+        confidence_threshold: float = 0.1,
+        iou_threshold: float = 0.45,
+        device: str = "cuda",
+        max_detections: int = 1000,
+    ):
         self.model = YOLO(model_path)
         self.confidence_threshold = confidence_threshold
+        self.iou_threshold = iou_threshold
+        self.device = device
+        self.max_detections = max_detections
 
     def process(self, data: Video) -> Video:
         # Use progress bar for object detection
