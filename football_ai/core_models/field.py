@@ -81,9 +81,6 @@ class Field:
     match_date: Optional[str] = None
     weather_conditions: Optional[str] = None
 
-    # Additional custom data
-    custom: Dict[str, Any] = field(default_factory=dict)
-
     def __post_init__(self):
         """Initialize default zones and validate field dimensions."""
         if not self.zones:

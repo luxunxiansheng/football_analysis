@@ -1,9 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from supervision.detection.core import Detections
-from supervision.keypoint.core import KeyPoints
-
 
 @dataclass
 class Player:
@@ -33,10 +30,7 @@ class Player:
     acceleration: Optional[float] = None
 
     # Detection data
-    detection: Optional[Detections] = None  # Single detection from supervision
-    keypoints: Optional[KeyPoints] = None
     detection_confidence: Optional[float] = None
-
     # Tracking data
     track_confidence: Optional[float] = None
     track_age: Optional[int] = None  # Number of frames tracked
@@ -58,13 +52,15 @@ class Player:
     ball_possession_time: Optional[float] = None  # Total time with ball
     last_ball_touch_frame: Optional[int] = None
 
+    # Explicit object position for motion analysis
+    object_position: Optional[Tuple[float, float]] = None
+
     # Role and formation
     position_role: Optional[str] = None  # e.g., "defender", "midfielder", "forward"
     tactical_role: Optional[str] = None  # "defender", "midfielder", etc.
     formation_position: Optional[str] = None  # e.g., "CB", "LB", "CM", "ST"
 
     # Additional custom data
-    custom: Optional[Dict[str, Any]] = field(default_factory=dict)
     frame_timestamp: Optional[float] = None
     team_assignment_confidence: Optional[float] = None
     position_estimation_confidence: Optional[float] = None

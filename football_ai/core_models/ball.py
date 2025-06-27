@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from supervision.detection.core import Detections
-
 
 @dataclass
 class Ball:
@@ -31,9 +29,8 @@ class Ball:
     velocity_vector: Optional[Tuple[float, float]] = None  # 2D velocity (vx, vy)
 
     # Detection data
-    detection: Optional[Detections] = None  # Single detection from supervision
-    detection_confidence: Optional[float] = None
     ball_size: Optional[float] = None  # Estimated ball diameter in pixels
+    detection_confidence: Optional[float] = None
 
     # Tracking data
     track_confidence: Optional[float] = None
@@ -53,6 +50,9 @@ class Ball:
     last_touch_frame: Optional[int] = None  # Frame of last touch
     possession_team_id: Optional[int] = None  # Team currently in possession
     possession_confidence: Optional[float] = None
+
+    # Explicit object position for motion analysis
+    object_position: Optional[Tuple[float, float]] = None
 
     # Ball state analysis
     ball_state: Optional[str] = None  # "loose", "controlled", "in_play", "out_of_play"
@@ -82,7 +82,6 @@ class Ball:
     )  # Time spent in each zone
 
     # Additional custom data
-    custom: Optional[Dict[str, Any]] = field(default_factory=dict)
     frame_timestamp: Optional[float] = None
     position_estimation_confidence: Optional[float] = None
 

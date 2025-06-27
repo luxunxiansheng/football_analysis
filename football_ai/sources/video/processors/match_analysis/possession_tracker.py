@@ -60,10 +60,8 @@ class BallControlProcessor(Processor):
         if progress_bar:
             progress_bar.close()
 
-        # Also add final stats to video custom data
-        if data.custom is None:
-            data.custom = {}
-        data.custom["ball_control"] = {
+        # Also add final stats to video explicit attribute
+        data.ball_control_stats = {
             "percentages": self._calculate_percentages(),
             "frame_counts": self._ball_control_counts.copy(),
             "total_frames_analyzed": self._total_frames_with_ball,
@@ -71,7 +69,7 @@ class BallControlProcessor(Processor):
         }
 
         # Debug: Confirm video metadata is stored
-        print(f"DEBUG: Video custom data stored - {data.custom['ball_control']}")
+        print(f"DEBUG: Video ball_control_stats stored - {data.ball_control_stats}")
 
         return data
 
@@ -143,9 +141,9 @@ class BallControlProcessor(Processor):
 
     def get_video_level_stats(self, data: Video):
         """Get video-level ball control statistics."""
-        if not data.custom or "ball_control" not in data.custom:
+        if not hasattr(data, "ball_control_stats"):
             return None
-        return data.custom["ball_control"]
+        return data.ball_control_stats
 
     def print_video_summary(self, data: Video):
         """Print a summary of video-level ball control statistics."""

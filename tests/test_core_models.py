@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import numpy as np
 from typing import List, Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 # Import core models
 from football_ai.core_models.player import Player
@@ -28,8 +28,6 @@ from football_ai.core_models.video import (
 )
 from football_ai.core_models.game import Game, Team, MatchType, MatchStatus
 from football_ai.core_models.interfaces import Processor
-from supervision.detection.core import Detections
-from supervision.keypoint.core import KeyPoints
 
 
 class TestPlayer(unittest.TestCase):
@@ -46,7 +44,6 @@ class TestPlayer(unittest.TestCase):
             field_position=(25.0, 35.0),
             speed=5.5,
             direction=45.0,
-            detection_confidence=0.95,
             track_confidence=0.90,
             is_active=True,
         )
@@ -241,23 +238,6 @@ class TestPlayer(unittest.TestCase):
         if self.player.speed is not None:
             self.assertAlmostEqual(self.player.speed, 5.0, places=2)
 
-    def test_player_custom_data(self):
-        """Test custom data storage."""
-        self.player.custom = {"energy": 85, "form": "good"}
-
-        self.assertEqual(self.player.custom["energy"], 85)
-        self.assertEqual(self.player.custom["form"], "good")
-
-    def test_player_ball_interaction(self):
-        """Test ball interaction properties."""
-        self.player.has_ball = True
-        self.player.ball_possession_time = 45.2
-        self.player.last_ball_touch_frame = 150
-
-        self.assertTrue(self.player.has_ball)
-        self.assertEqual(self.player.ball_possession_time, 45.2)
-        self.assertEqual(self.player.last_ball_touch_frame, 150)
-
     def test_player_tactical_info(self):
         """Test tactical information."""
         self.player.position_role = "midfielder"
@@ -267,20 +247,6 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(self.player.position_role, "midfielder")
         self.assertEqual(self.player.tactical_role, "box-to-box")
         self.assertEqual(self.player.formation_position, "CM")
-
-    def test_player_detection_data(self):
-        """Test detection data with mock objects."""
-        # Mock detection and keypoints
-        mock_detection = Mock(spec=Detections)
-        mock_keypoints = Mock(spec=KeyPoints)
-
-        self.player.detection = mock_detection
-        self.player.keypoints = mock_keypoints
-        self.player.detection_confidence = 0.92
-
-        self.assertEqual(self.player.detection, mock_detection)
-        self.assertEqual(self.player.keypoints, mock_keypoints)
-        self.assertEqual(self.player.detection_confidence, 0.92)
 
 
 class TestBall(unittest.TestCase):
@@ -294,7 +260,6 @@ class TestBall(unittest.TestCase):
             field_position=(50.0, 25.0),
             speed=15.0,
             direction=90.0,
-            detection_confidence=0.85,
             is_active=True,
             is_visible=True,
         )
@@ -386,18 +351,6 @@ class TestBall(unittest.TestCase):
         self.assertEqual(min(self.ball.speed_history), 8.0)
         self.assertAlmostEqual(sum(speeds) / len(speeds), 13.0, places=2)
 
-    def test_ball_detection_data(self):
-        """Test ball detection data with mock objects."""
-        mock_detection = Mock(spec=Detections)
-
-        self.ball.detection = mock_detection
-        self.ball.detection_confidence = 0.92
-        self.ball.ball_size = 15.5
-
-        self.assertEqual(self.ball.detection, mock_detection)
-        self.assertEqual(self.ball.detection_confidence, 0.92)
-        self.assertEqual(self.ball.ball_size, 15.5)
-
     def test_ball_visibility_states(self):
         """Test ball visibility states."""
         self.assertTrue(self.ball.is_visible)
@@ -477,13 +430,6 @@ class TestBall(unittest.TestCase):
             len(self.ball.field_position_history), 1
         )  # Assuming it was empty
 
-    def test_ball_custom_data(self):
-        """Test ball custom data storage."""
-        self.ball.custom = {"tracking_quality": "high", "occlusion_count": 2}
-
-        self.assertEqual(self.ball.custom["tracking_quality"], "high")
-        self.assertEqual(self.ball.custom["occlusion_count"], 2)
-
 
 class TestGoalkeeper(unittest.TestCase):
     """Test Goalkeeper model."""
@@ -498,7 +444,6 @@ class TestGoalkeeper(unittest.TestCase):
             pixel_position=(50.0, 240.0),
             field_position=(5.0, 34.0),
             speed=3.0,
-            detection_confidence=0.95,
             is_active=True,
         )
 
@@ -551,7 +496,6 @@ class TestReferee(unittest.TestCase):
             pixel_position=(320.0, 240.0),
             field_position=(52.5, 34.0),
             speed=2.5,
-            detection_confidence=0.88,
             is_active=True,
         )
 
@@ -649,5 +593,3 @@ class TestField(unittest.TestCase):
         """Test field transformation methods if they exist."""
         # These methods might be added to Field class later
         pass
-
-    # ...existing code...

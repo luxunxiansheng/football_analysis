@@ -137,6 +137,9 @@ class Video:
     tags: List[str] = field(default_factory=list)
     annotations: Dict[str, Any] = field(default_factory=dict)
 
+    # Explicit ball control statistics for match analysis
+    ball_control_stats: Optional[Dict[str, Any]] = None
+
     def __post_init__(self):
         """Initialize video-specific data after creation."""
         if not self.metadata.file_path:

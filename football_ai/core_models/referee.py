@@ -1,9 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from supervision.detection.core import Detections
-from supervision.keypoint.core import KeyPoints
-
 
 @dataclass
 class Referee:
@@ -30,8 +27,6 @@ class Referee:
     acceleration: Optional[float] = None
 
     # Detection data
-    detection: Optional[Detections] = None  # Single detection from supervision
-    keypoints: Optional[KeyPoints] = None
     detection_confidence: Optional[float] = None
 
     # Tracking data
@@ -62,8 +57,10 @@ class Referee:
     )  # Track referee decisions
     last_decision_frame: Optional[int] = None
 
+    # Explicit object position for motion analysis
+    object_position: Optional[Tuple[float, float]] = None
+
     # Additional custom data
-    custom: Optional[Dict[str, Any]] = field(default_factory=dict)
     frame_timestamp: Optional[float] = None
     position_estimation_confidence: Optional[float] = None
 

@@ -105,7 +105,6 @@ class Frame:
     score: Optional[Tuple[int, int]] = None  # (home_score, away_score)
 
     # Additional custom data
-    custom: Dict[str, Any] = dataclass_field(default_factory=dict)
     annotations: Dict[str, Any] = dataclass_field(
         default_factory=dict
     )  # Human annotations
@@ -457,7 +456,6 @@ class Frame:
         new_frame.match_time = self.match_time
         new_frame.match_period = self.match_period
         new_frame.score = self.score
-        new_frame.custom = self.custom.copy()
         new_frame.annotations = self.annotations.copy()
 
         # Copy object collections (shallow copy of the dicts)

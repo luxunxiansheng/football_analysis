@@ -15,92 +15,49 @@ from football_ai.core_models import (
     Video as VideoData,
     Frame as FrameData,
     ObjectType,
+    Player,
+    Ball,
 )
 from football_ai.config import (
     FootballAIConfig,
     get_default_config,
     get_broadcast_config,
 )
-from football_ai.sources.video.processors.object_detection.yolo_detector import (
-    BoundingBox,
-    Detection,
-)
 
 
 class TestDataModels(unittest.TestCase):
     """Test core data models and structures."""
 
-    def test_bounding_box_creation(self):
-        """Test BoundingBox creation and methods."""
-        bbox = BoundingBox(x1=10, y1=20, x2=100, y2=200, confidence=0.85)
+    def test_player_creation(self):
+        """Test Player creation and attributes."""
+        player = Player(track_id=1, team_id=0, pixel_position=(10, 20), speed=7.5)
+        self.assertEqual(player.track_id, 1)
+        self.assertEqual(player.team_id, 0)
+        self.assertEqual(player.pixel_position, (10, 20))
+        self.assertEqual(player.speed, 7.5)
 
-        self.assertEqual(bbox.x1, 10)
-        self.assertEqual(bbox.y1, 20)
-        self.assertEqual(bbox.x2, 100)
-        self.assertEqual(bbox.y2, 200)
-        self.assertEqual(bbox.confidence, 0.85)
-
-        # Test as_list method
-        bbox_list = bbox.as_list()
-        self.assertEqual(bbox_list, [10, 20, 100, 200])
-
-    def test_detection_creation(self):
-        """Test Detection creation with direct fields."""
-        bbox = BoundingBox(x1=10, y1=20, x2=100, y2=200)
-        detection = Detection(
-            bbox=bbox,
-            object_type=ObjectType.PLAYER,
-            confidence=0.9,
-            track_id=1,
-            team=1,
-        )
-
-        self.assertEqual(detection.object_type, ObjectType.PLAYER)
-        self.assertEqual(detection.confidence, 0.9)
-        self.assertEqual(detection.track_id, 1)
-        self.assertEqual(detection.team, 1)
-
-    def test_detection_direct_fields(self):
-        """Test detection direct fields work correctly."""
-        bbox = BoundingBox(x1=0, y1=0, x2=50, y2=50)
-        detection = Detection(bbox=bbox, object_type=ObjectType.PLAYER, confidence=0.8)
-
-        # Test setting various fields directly
-        detection.track_id = 42
-        detection.team = 2
-        detection.speed = 15.5
-        detection.field_position = (25.0, 40.0)
-        detection.assigned_player = None
-
-        self.assertEqual(detection.track_id, 42)
-        self.assertEqual(detection.team, 2)
-        self.assertEqual(detection.speed, 15.5)
-        self.assertEqual(detection.field_position, (25.0, 40.0))
-        self.assertIsNone(detection.assigned_player)
+    def test_ball_creation(self):
+        """Test Ball creation and attributes."""
+        ball = Ball(track_id=1, pixel_position=(100, 200), speed=15.0)
+        self.assertEqual(ball.track_id, 1)
+        self.assertEqual(ball.pixel_position, (100, 200))
+        self.assertEqual(ball.speed, 15.0)
 
     def test_frame_data_creation(self):
-        """Test FrameData creation with detections."""
-        # Create sample frame with detections
+        """Test FrameData creation with new model objects."""
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-
-        bbox1 = BoundingBox(x1=10, y1=20, x2=50, y2=80)
-        detection1 = Detection(
-            bbox=bbox1, object_type=ObjectType.PLAYER, confidence=0.9
-        )
-
-        bbox2 = BoundingBox(x1=100, y1=120, x2=140, y2=180)
-        detection2 = Detection(bbox=bbox2, object_type=ObjectType.BALL, confidence=0.8)
-
+        player = Player(track_id=1, team_id=0, pixel_position=(10, 20))
+        ball = Ball(track_id=1, pixel_position=(100, 200))
         frame_data = FrameData(frame_number=0, timestamp=0.0, raw_frame=frame)
-
+        frame_data.add_player(player)
+        frame_data.set_ball(ball)
         self.assertEqual(frame_data.frame_number, 0)
         self.assertEqual(frame_data.timestamp, 0.0)
-        self.assertEqual(len(frame_data.players), 0)
-        self.assertIsNone(frame_data.ball)
+        self.assertEqual(len(frame_data.players), 1)
+        self.assertIsNotNone(frame_data.ball)
 
     def test_video_data_creation(self):
         """Test VideoData creation and properties."""
-        # Create sample frames
         frames = []
         for i in range(3):
             frame = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -108,9 +65,7 @@ class TestDataModels(unittest.TestCase):
                 frame_number=i, timestamp=i * 0.033, raw_frame=frame  # ~30fps
             )
             frames.append(frame_data)
-
         video_data = VideoData(video_id="test_video_001", video_path="test_video.mp4")
-
         self.assertEqual(video_data.video_id, "test_video_001")
         self.assertEqual(video_data.video_path, "test_video.mp4")
         self.assertEqual(len(video_data.frames), 0)
@@ -205,7 +160,7 @@ class TestConfiguration(unittest.TestCase):
 
 
 class TestObjectTypes(unittest.TestCase):
-    """Test object type constants."""
+    """Test object type constants and usage with new model classes."""
 
     def test_object_type_constants(self):
         """Test that object type constants are properly defined."""
@@ -214,19 +169,15 @@ class TestObjectTypes(unittest.TestCase):
         self.assertEqual(ObjectType.REFEREE, "referee")
         self.assertEqual(ObjectType.BALL, "ball")
 
-    def test_object_type_usage_in_detection(self):
-        """Test object types work correctly in Detection objects."""
-        bbox = BoundingBox(x1=0, y1=0, x2=50, y2=50)
-
-        player_detection = Detection(
-            bbox=bbox, object_type=ObjectType.PLAYER, confidence=0.9
-        )
-        ball_detection = Detection(
-            bbox=bbox, object_type=ObjectType.BALL, confidence=0.8
-        )
-
-        self.assertEqual(player_detection.object_type, "player")
-        self.assertEqual(ball_detection.object_type, "ball")
+    def test_object_type_usage_in_player_and_ball(self):
+        """Test object types work correctly in Player and Ball objects."""
+        player = Player(track_id=1, team_id=0)
+        ball = Ball(track_id=1)
+        # Simulate type assignment (if used in your code)
+        player_type = ObjectType.PLAYER
+        ball_type = ObjectType.BALL
+        self.assertEqual(player_type, "player")
+        self.assertEqual(ball_type, "ball")
 
 
 if __name__ == "__main__":

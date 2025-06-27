@@ -1,9 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from supervision.detection.core import Detections
-from supervision.keypoint.core import KeyPoints
-
 
 @dataclass
 class Goalkeeper:
@@ -34,10 +31,7 @@ class Goalkeeper:
     acceleration: Optional[float] = None
 
     # Detection data
-    detection: Optional[Detections] = None  # Single detection from supervision
-    keypoints: Optional[KeyPoints] = None
     detection_confidence: Optional[float] = None
-
     # Tracking data
     track_confidence: Optional[float] = None
     track_age: Optional[int] = None  # Number of frames tracked
@@ -76,6 +70,9 @@ class Goalkeeper:
     )  # Goal kicks, clearances
     throws_made: List[Dict[str, Any]] = field(default_factory=list)
 
+    # Explicit object position for motion analysis
+    object_position: Optional[Tuple[float, float]] = None
+
     # Goalkeeper statistics
     shots_faced: int = 0
     saves_count: int = 0
@@ -89,7 +86,6 @@ class Goalkeeper:
     time_outside_penalty_area: Optional[float] = None
 
     # Additional custom data
-    custom: Optional[Dict[str, Any]] = field(default_factory=dict)
     frame_timestamp: Optional[float] = None
     team_assignment_confidence: Optional[float] = None
     position_estimation_confidence: Optional[float] = None
