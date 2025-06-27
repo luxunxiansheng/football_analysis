@@ -77,50 +77,38 @@ class BallControlProcessor(Processor):
 
     def _process_frame(self, frame_data):
         """Process a single frame to update ball control counts."""
-        if not frame_data.detections:
+        # Work with domain objects instead of raw detections
+        ball = frame_data.ball
+
+        if ball is None:
             return
 
-        detections = frame_data.detections
+        # Check if ball has possession information
+        if ball.possession_team_id is not None:
+            team_id = ball.possession_team_id
 
-        # Debug: Count detection types
-        balls_found = 0
-        balls_with_players = 0
-
-        # Find balls with assigned players
-        for detection in detections:
-            if self._is_ball(detection):
-                balls_found += 1
-                if self._has_assigned_player(detection):
-                    balls_with_players += 1
-                    assigned_idx = detection.metadata["assigned_player"]
-                    if assigned_idx < len(detections):
-                        player = detections[assigned_idx]
-                        team_id = self._get_team_id(player)
-
-                        if team_id is not None:
-                            if team_id not in self._ball_control_counts:
-                                self._ball_control_counts[team_id] = 0
-                            self._ball_control_counts[team_id] += 1
-                            self._total_frames_with_ball += 1
-                            break  # Only count one ball per frame
+            if team_id not in self._ball_control_counts:
+                self._ball_control_counts[team_id] = 0
+            self._ball_control_counts[team_id] += 1
+            self._total_frames_with_ball += 1
 
         # Debug output every 100 frames
         if self._total_frames_with_ball % 100 == 0 and self._total_frames_with_ball > 0:
             print(
-                f"DEBUG: Frame processed - balls found: {balls_found}, balls with players: {balls_with_players}"
+                f"DEBUG: Frame processed - ball possession team: {ball.possession_team_id}"
             )
             print(f"DEBUG: Current counts: {self._ball_control_counts}")
             print(f"DEBUG: Total frames: {self._total_frames_with_ball}")
 
     def _is_ball(self, detection):
-        """Check if detection is a ball."""
+        """Check if detection is a ball - deprecated, keeping for compatibility."""
         return (
             getattr(detection, "object_type", None) == "ball"
             or getattr(detection, "class_name", "").lower() == "ball"
         )
 
     def _has_assigned_player(self, ball_detection):
-        """Check if ball has an assigned player."""
+        """Check if ball has an assigned player - deprecated, keeping for compatibility."""
         return (
             hasattr(ball_detection, "metadata")
             and ball_detection.metadata
@@ -129,7 +117,7 @@ class BallControlProcessor(Processor):
         )
 
     def _get_team_id(self, player_detection):
-        """Get team ID from player detection."""
+        """Get team ID from player detection - deprecated, keeping for compatibility."""
         if hasattr(player_detection, "metadata") and player_detection.metadata:
             for field in ["team_id", "team", "cluster_id"]:
                 if field in player_detection.metadata:

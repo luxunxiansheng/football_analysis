@@ -5,6 +5,7 @@ from .player import Player
 from .referee import Referee
 from .goalkeeper import Goalkeeper
 from .ball import Ball
+from .ball_control import BallControl
 from .field import Field
 from .frame import Frame, CameraMotion, ProcessingStatus
 from .video import Video, VideoMetadata, MatchContext, ProcessingConfig
@@ -29,6 +30,7 @@ __all__ = [
     "Referee",
     "Goalkeeper",
     "Ball",
+    "BallControl",
     "Field",
     "Frame",
     "Video",

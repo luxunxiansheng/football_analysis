@@ -19,39 +19,55 @@ class BallAssignmentProcessor(Processor):
             progress_bar = None
 
         for frame_data in frame_iterator:
-            detections = frame_data.detections or []
-            ball_indices = [
-                i
-                for i, d in enumerate(detections)
-                if getattr(d, "object_type", None) == "ball"
-                or getattr(d, "class_name", "").lower() == "ball"
-            ]
-            player_indices = [
-                i
-                for i, d in enumerate(detections)
-                if getattr(d, "object_type", None) in ("player", "goalkeeper")
-                or getattr(d, "class_name", "").lower() in ("player", "goalkeeper")
-            ]
-            # Assign each ball to the closest player/goalkeeper within max_distance
-            for ball_idx in ball_indices:
-                ball_detection = detections[ball_idx]
-                ball_center = self._get_center(ball_detection)
-                min_dist = float("inf")
-                assigned_idx = None
-                for p_idx in player_indices:
-                    player_detection = detections[p_idx]
-                    player_center = self._get_center(player_detection)
-                    dist = np.linalg.norm(
-                        np.array(ball_center) - np.array(player_center)
-                    )
-                    if dist < min_dist and dist <= self.max_distance:
-                        min_dist = dist
-                        assigned_idx = p_idx
-                ball_detection.assigned_player = assigned_idx
+            self._assign_ball_to_players(frame_data)
 
         if progress_bar:
             progress_bar.close()
         return data
+
+    def _assign_ball_to_players(self, frame: Frame) -> None:
+        """Assign ball to the closest player within max distance."""
+        if frame.ball is None:
+            return
+
+        # Get all players (including goalkeepers)
+        all_players = list(frame.players.values()) + list(frame.goalkeepers.values())
+
+        if not all_players:
+            return
+
+        ball_position = frame.ball.pixel_position
+        if ball_position is None:
+            return
+
+        # Find closest player
+        min_distance = float("inf")
+        closest_player = None
+
+        for player in all_players:
+            if player.pixel_position is None:
+                continue
+
+            distance = np.linalg.norm(
+                np.array(ball_position) - np.array(player.pixel_position)
+            )
+
+            if distance < min_distance and distance <= self.max_distance:
+                min_distance = distance
+                closest_player = player
+
+        # Update ball possession information
+        if closest_player is not None:
+            frame.ball.controlling_player_id = closest_player.track_id
+            frame.ball.possession_team_id = closest_player.team_id
+            frame.ball.possession_confidence = float(
+                max(0.0, 1.0 - (min_distance / self.max_distance))
+            )
+        else:
+            # Ball is not controlled by any player
+            frame.ball.controlling_player_id = None
+            frame.ball.possession_team_id = None
+            frame.ball.possession_confidence = 0.0
 
     def _get_center(self, det):
         bbox = det.bbox

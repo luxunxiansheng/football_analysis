@@ -16,10 +16,13 @@ class VideoWriterProcessor(Processor):
     def process(self, video_data: Video) -> Video:
         if not video_data.frames:
             raise ValueError("No frames to write in VideoData.")
-        height, width = video_data.resolution[1], video_data.resolution[0]
+        height, width = (
+            video_data.metadata.resolution[1],
+            video_data.metadata.resolution[0],
+        )
         fourcc = cv2.VideoWriter.fourcc(*self.codec)
         out = cv2.VideoWriter(
-            self.output_path, fourcc, video_data.frame_rate, (width, height)
+            self.output_path, fourcc, video_data.metadata.frame_rate, (width, height)
         )
 
         # Use progress bar for frame writing

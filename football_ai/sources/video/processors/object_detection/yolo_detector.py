@@ -2,32 +2,9 @@ from football_ai.utilities import np, create_progress_bar
 from football_ai.core_models.video import Video
 from football_ai.core_models.constants import ObjectType
 from football_ai.core_models.interfaces import Processor
+from football_ai.core_models import Player, Goalkeeper, Referee, Ball
 
 from ultralytics import YOLO
-
-# Temporary classes for backward compatibility
-from dataclasses import dataclass
-from typing import Optional
-
-
-@dataclass
-class BoundingBox:
-    """Temporary BoundingBox for backward compatibility."""
-
-    x1: float
-    y1: float
-    x2: float
-    y2: float
-    confidence: Optional[float] = None
-
-
-@dataclass
-class Detection:
-    """Temporary Detection for backward compatibility."""
-
-    bbox: BoundingBox
-    object_type: str
-    confidence: float
 
 
 class ObjectDetectionProcessor(Processor):
@@ -67,34 +44,54 @@ class ObjectDetectionProcessor(Processor):
         return self._parse_yolo_result(result[0])
 
     def _parse_yolo_result(self, yolo_result) -> list:
-        detections = []
+        """Parse YOLO results into domain objects."""
+        objects = []
         if yolo_result.boxes is None:
-            return detections
+            return objects
+        
         class_names = yolo_result.names
         boxes = yolo_result.boxes.xyxy.cpu().numpy()
         confidences = yolo_result.boxes.conf.cpu().numpy()
         class_ids = yolo_result.boxes.cls.cpu().numpy().astype(int)
+        
         for box, conf, class_id in zip(boxes, confidences, class_ids):
             class_name = class_names.get(class_id, "unknown")
+            
+            # Extract bounding box coordinates
+            x1, y1, x2, y2 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
+            confidence = float(conf)
+            
+            # Create appropriate domain object based on detection type
             if class_name == "player":
-                object_type = ObjectType.PLAYER
+                obj = Player(
+                    object_id=None,  # Will be assigned during tracking
+                    bounding_box=(x1, y1, x2, y2),
+                    confidence=confidence,
+                    pixel_position=((x1 + x2) / 2, (y1 + y2) / 2),
+                )
             elif class_name == "goalkeeper":
-                object_type = ObjectType.GOALKEEPER
+                obj = Goalkeeper(
+                    object_id=None,
+                    bounding_box=(x1, y1, x2, y2),
+                    confidence=confidence,
+                    pixel_position=((x1 + x2) / 2, (y1 + y2) / 2),
+                )
             elif class_name == "referee":
-                object_type = ObjectType.REFEREE
+                obj = Referee(
+                    object_id=None,
+                    bounding_box=(x1, y1, x2, y2),
+                    confidence=confidence,
+                    pixel_position=((x1 + x2) / 2, (y1 + y2) / 2),
+                )
             elif class_name == "ball":
-                object_type = ObjectType.BALL
+                obj = Ball(
+                    object_id=None,
+                    bounding_box=(x1, y1, x2, y2),
+                    confidence=confidence,
+                    pixel_position=((x1 + x2) / 2, (y1 + y2) / 2),
+                )
             else:
                 continue
-            bbox = BoundingBox(
-                x1=float(box[0]),
-                y1=float(box[1]),
-                x2=float(box[2]),
-                y2=float(box[3]),
-                confidence=float(conf),
-            )
-            detection = Detection(
-                bbox=bbox, object_type=object_type, confidence=float(conf)
-            )
-            detections.append(detection)
-        return detections
+                
+            objects.append(obj)
+        return objects

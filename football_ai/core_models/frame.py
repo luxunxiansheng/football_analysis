@@ -8,6 +8,7 @@ from .referee import Referee
 from .goalkeeper import Goalkeeper
 from .ball import Ball
 from .field import Field
+from .ball_control import BallControl
 
 
 @dataclass
@@ -91,6 +92,7 @@ class Frame:
         default_factory=dict
     )  # track_id -> Goalkeeper
     ball: Optional[Ball] = None
+    ball_control: BallControl = dataclass_field(default_factory=BallControl)
 
     # Frame-level analytics
     frame_quality_score: Optional[float] = None  # Overall frame quality (0-1)

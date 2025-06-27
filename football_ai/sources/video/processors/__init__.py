@@ -11,6 +11,7 @@ from .object_tracking import TrackProcessor
 from .motion_analysis import ObjectMotionProcessor, CameraMotionProcessor
 from .coordinate_transformation import FieldTransformationProcessor
 from .team_classification import SigLIPTeamAssignmentProcessor, BallAssignmentProcessor
+from .domain_conversion import DetectionConverterProcessor
 from .match_analysis import SpeedProcessor, BallControlProcessor
 from .video_rendering import RendererProcessor
 from .video_export import VideoWriterProcessor
@@ -23,6 +24,7 @@ __all__ = [
     "FieldTransformationProcessor",
     "SigLIPTeamAssignmentProcessor",
     "BallAssignmentProcessor",
+    "DetectionConverterProcessor",
     "SpeedProcessor",
     "BallControlProcessor",
     "RendererProcessor",

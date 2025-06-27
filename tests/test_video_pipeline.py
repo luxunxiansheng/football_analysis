@@ -196,6 +196,11 @@ class TestObjectDetectionProcessor(unittest.TestCase):
 
             # Mock YOLO model and progress bar
             mock_model = Mock()
+            mock_result = Mock()
+            mock_result.boxes = None  # Simulate no detections
+            mock_model.predict.return_value = [
+                mock_result
+            ]  # Return list with one result
             mock_yolo.return_value = mock_model
             mock_progress_bar.return_value = Mock()
 

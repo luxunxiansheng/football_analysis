@@ -21,6 +21,10 @@ from football_ai.config import (
     get_default_config,
     get_broadcast_config,
 )
+from football_ai.sources.video.processors.object_detection.yolo_detector import (
+    BoundingBox,
+    Detection,
+)
 
 
 class TestDataModels(unittest.TestCase):
@@ -59,7 +63,7 @@ class TestDataModels(unittest.TestCase):
     def test_detection_direct_fields(self):
         """Test detection direct fields work correctly."""
         bbox = BoundingBox(x1=0, y1=0, x2=50, y2=50)
-        detection = Detection(bbox=bbox)
+        detection = Detection(bbox=bbox, object_type=ObjectType.PLAYER, confidence=0.8)
 
         # Test setting various fields directly
         detection.track_id = 42
@@ -73,7 +77,6 @@ class TestDataModels(unittest.TestCase):
         self.assertEqual(detection.speed, 15.5)
         self.assertEqual(detection.field_position, (25.0, 40.0))
         self.assertIsNone(detection.assigned_player)
-        self.assertIsNone(detection.assigned_player)
 
     def test_frame_data_creation(self):
         """Test FrameData creation with detections."""
@@ -81,23 +84,19 @@ class TestDataModels(unittest.TestCase):
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         bbox1 = BoundingBox(x1=10, y1=20, x2=50, y2=80)
-        detection1 = Detection(bbox=bbox1, object_type=ObjectType.PLAYER)
+        detection1 = Detection(
+            bbox=bbox1, object_type=ObjectType.PLAYER, confidence=0.9
+        )
 
         bbox2 = BoundingBox(x1=100, y1=120, x2=140, y2=180)
-        detection2 = Detection(bbox=bbox2, object_type=ObjectType.BALL)
+        detection2 = Detection(bbox=bbox2, object_type=ObjectType.BALL, confidence=0.8)
 
-        frame_data = FrameData(
-            frame_number=0,
-            timestamp=0.0,
-            raw_frame=frame,
-            detections=[detection1, detection2],
-        )
+        frame_data = FrameData(frame_number=0, timestamp=0.0, raw_frame=frame)
 
         self.assertEqual(frame_data.frame_number, 0)
         self.assertEqual(frame_data.timestamp, 0.0)
-        self.assertEqual(len(frame_data.detections), 2)
-        self.assertEqual(frame_data.detections[0].object_type, ObjectType.PLAYER)
-        self.assertEqual(frame_data.detections[1].object_type, ObjectType.BALL)
+        self.assertEqual(len(frame_data.players), 0)
+        self.assertIsNone(frame_data.ball)
 
     def test_video_data_creation(self):
         """Test VideoData creation and properties."""
@@ -110,19 +109,11 @@ class TestDataModels(unittest.TestCase):
             )
             frames.append(frame_data)
 
-        video_data = VideoData(
-            video_path="test_video.mp4",
-            frame_rate=30.0,
-            resolution=(640, 480),
-            duration=0.1,
-            frames=frames,
-        )
+        video_data = VideoData(video_id="test_video_001", video_path="test_video.mp4")
 
+        self.assertEqual(video_data.video_id, "test_video_001")
         self.assertEqual(video_data.video_path, "test_video.mp4")
-        self.assertEqual(video_data.frame_rate, 30.0)
-        self.assertEqual(video_data.resolution, (640, 480))
-        self.assertEqual(video_data.duration, 0.1)
-        self.assertEqual(len(video_data.frames), 3)
+        self.assertEqual(len(video_data.frames), 0)
 
 
 class TestConfiguration(unittest.TestCase):
@@ -227,8 +218,12 @@ class TestObjectTypes(unittest.TestCase):
         """Test object types work correctly in Detection objects."""
         bbox = BoundingBox(x1=0, y1=0, x2=50, y2=50)
 
-        player_detection = Detection(bbox=bbox, object_type=ObjectType.PLAYER)
-        ball_detection = Detection(bbox=bbox, object_type=ObjectType.BALL)
+        player_detection = Detection(
+            bbox=bbox, object_type=ObjectType.PLAYER, confidence=0.9
+        )
+        ball_detection = Detection(
+            bbox=bbox, object_type=ObjectType.BALL, confidence=0.8
+        )
 
         self.assertEqual(player_detection.object_type, "player")
         self.assertEqual(ball_detection.object_type, "ball")

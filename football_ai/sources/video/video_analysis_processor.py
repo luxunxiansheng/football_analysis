@@ -205,51 +205,96 @@ class VideoAnalysisProcessor:
 
     def _extract_player_data(self, game: Game, video: Video) -> None:
         """Extract player tracking and movement data from video analysis."""
+        total_players_found = 0
+        frames_with_players = 0
+
+        # Debug: Check what's in the first few frames
+        if len(video.frames) > 0:
+            sample_frame = video.frames[0]
+            self.logger.info(
+                f"DEBUG: Sample frame has {len(sample_frame.players)} players, {len(sample_frame.goalkeepers)} goalkeepers"
+            )
+            if sample_frame.players:
+                first_player = next(iter(sample_frame.players.values()))
+                self.logger.info(
+                    f"DEBUG: First player team_id: {first_player.team_id}, pixel_position: {first_player.pixel_position}"
+                )
+            if sample_frame.ball:
+                self.logger.info(
+                    f"DEBUG: Ball possession_team_id: {sample_frame.ball.possession_team_id}, controlling_player_id: {sample_frame.ball.controlling_player_id}"
+                )
+
         for frame in video.frames:
+            frame_players = 0
+
             # Process all players
             for track_id, player in frame.players.items():
-                if player.player_id:
-                    game_player = game.get_or_create_player(
-                        player_id=player.player_id,
-                        team_id=str(player.team_id) if player.team_id else None,
-                        position=getattr(player, "position_role", None),
-                        is_goalkeeper=False,
-                    )
+                # Use player_id if available, otherwise use track_id as fallback
+                player_identifier = (
+                    player.player_id if player.player_id else f"track_{track_id}"
+                )
 
-                    # Add position data if available
-                    if player.pixel_position:
-                        game_player.add_position_data(
-                            timestamp=frame.timestamp,
-                            x=player.pixel_position[0],
-                            y=player.pixel_position[1],
-                            velocity_x=getattr(player, "velocity_x", 0),
-                            velocity_y=getattr(player, "velocity_y", 0),
-                            speed=player.speed or 0,
-                        )
+                game_player = game.get_or_create_player(
+                    player_id=player_identifier,
+                    team_id=str(player.team_id) if player.team_id else None,
+                    position=getattr(player, "position_role", None),
+                    is_goalkeeper=False,
+                )
+
+                # Add position data if available
+                if player.pixel_position:
+                    game_player.add_position_data(
+                        timestamp=frame.timestamp,
+                        x=player.pixel_position[0],
+                        y=player.pixel_position[1],
+                        velocity_x=getattr(player, "velocity_x", 0),
+                        velocity_y=getattr(player, "velocity_y", 0),
+                        speed=player.speed or 0,
+                    )
+                    frame_players += 1
+                    total_players_found += 1
 
             # Process goalkeepers
             for track_id, goalkeeper in frame.goalkeepers.items():
-                if goalkeeper.player_id:
-                    game_player = game.get_or_create_player(
-                        player_id=goalkeeper.player_id,
-                        team_id=str(goalkeeper.team_id) if goalkeeper.team_id else None,
-                        position="GK",
-                        is_goalkeeper=True,
-                    )
+                # Use player_id if available, otherwise use track_id as fallback
+                player_identifier = (
+                    goalkeeper.player_id
+                    if goalkeeper.player_id
+                    else f"gk_track_{track_id}"
+                )
 
-                    # Add position data if available
-                    if goalkeeper.pixel_position:
-                        game_player.add_position_data(
-                            timestamp=frame.timestamp,
-                            x=goalkeeper.pixel_position[0],
-                            y=goalkeeper.pixel_position[1],
-                            velocity_x=getattr(goalkeeper, "velocity_x", 0),
-                            velocity_y=getattr(goalkeeper, "velocity_y", 0),
-                            speed=goalkeeper.speed or 0,
-                        )
+                game_player = game.get_or_create_player(
+                    player_id=player_identifier,
+                    team_id=str(goalkeeper.team_id) if goalkeeper.team_id else None,
+                    position="GK",
+                    is_goalkeeper=True,
+                )
+
+                # Add position data if available
+                if goalkeeper.pixel_position:
+                    game_player.add_position_data(
+                        timestamp=frame.timestamp,
+                        x=goalkeeper.pixel_position[0],
+                        y=goalkeeper.pixel_position[1],
+                        velocity_x=getattr(goalkeeper, "velocity_x", 0),
+                        velocity_y=getattr(goalkeeper, "velocity_y", 0),
+                        speed=goalkeeper.speed or 0,
+                    )
+                    frame_players += 1
+                    total_players_found += 1
+
+            if frame_players > 0:
+                frames_with_players += 1
+
+        self.logger.info(
+            f"Player extraction complete: {total_players_found} player positions across {frames_with_players} frames"
+        )
 
     def _extract_ball_data(self, game: Game, video: Video) -> None:
         """Extract ball tracking and possession data from video analysis."""
+        ball_positions = 0
+        possession_events = 0
+
         for frame in video.frames:
             if frame.ball:
                 ball = frame.ball
@@ -262,12 +307,17 @@ class VideoAnalysisProcessor:
                         velocity_x=getattr(ball, "velocity_x", 0),
                         velocity_y=getattr(ball, "velocity_y", 0),
                     )
+                    ball_positions += 1
 
                 # Add possession data if available
-                if ball.controlling_player_id:
+                if ball.controlling_player_id or ball.possession_team_id:
                     game.ball.add_possession_data(
                         timestamp=frame.timestamp,
-                        player_id=str(ball.controlling_player_id),
+                        player_id=(
+                            str(ball.controlling_player_id)
+                            if ball.controlling_player_id
+                            else None
+                        ),
                         team_id=(
                             str(ball.possession_team_id)
                             if ball.possession_team_id
@@ -275,6 +325,32 @@ class VideoAnalysisProcessor:
                         ),
                         confidence=ball.possession_confidence or 1.0,
                     )
+
+                    # Also store in ball_observations for possession calculation
+                    match_time = frame.timestamp / 60.0  # Convert to minutes
+                    if match_time not in game.ball_observations:
+                        game.ball_observations[match_time] = {}
+
+                    source_key = f"video_frame_{frame.frame_number}"
+                    game.ball_observations[match_time][source_key] = {
+                        "possession_team": (
+                            str(ball.possession_team_id)
+                            if ball.possession_team_id
+                            else None
+                        ),
+                        "controlling_player": (
+                            str(ball.controlling_player_id)
+                            if ball.controlling_player_id
+                            else None
+                        ),
+                        "confidence": ball.possession_confidence or 1.0,
+                        "ball_position": ball.pixel_position,
+                    }
+                    possession_events += 1
+
+        self.logger.info(
+            f"Ball extraction complete: {ball_positions} ball positions, {possession_events} possession events"
+        )
 
     def _extract_team_data(self, game: Game, video: Video) -> None:
         """Extract team-level analysis data from video."""

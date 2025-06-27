@@ -156,7 +156,7 @@ class TestGameFactory(unittest.TestCase):
             "match_id": "match_001",
             "home_team": "Team A",
             "away_team": "Team B",
-            "match_date": "2024-06-25",
+            "date": "2024-06-25",
             "competition": "Test League",
             "venue": "Test Stadium",
         }

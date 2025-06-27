@@ -222,6 +222,15 @@ class Game:
             return self.away_team
         return None
 
+    def get_team_players(self, team_id: str) -> List[Union[Player, Goalkeeper]]:
+        """Get all players for a specific team."""
+        if self.home_team.team_id == team_id:
+            return self.home_team.get_all_players()
+        elif self.away_team.team_id == team_id:
+            return self.away_team.get_all_players()
+        else:
+            return []
+
     # Event management
     def add_event(self, event: Union[MatchEvent, str], **kwargs) -> MatchEvent:
         """
@@ -358,24 +367,56 @@ class Game:
             }
         return {team_id: 0.0 for team_id in team_possession.keys()}
 
-    def get_player_heatmap_data(
-        self, player_id: str, source_id: Optional[str] = None
-    ) -> List[Tuple[float, float]]:
-        """Get position data for creating player heatmaps."""
+    # Analytics methods for heatmap generation
+    def get_team_heatmap_data(self, team_id: str) -> List[Dict[str, Any]]:
+        """Get heatmap data for a team."""
         positions = []
+        team = self.home_team if self.home_team.team_id == team_id else self.away_team
 
-        for match_time, time_data in self.player_observations.items():
-            if player_id in time_data:
-                player_data = time_data[player_id]
+        for player in team.get_all_players():
+            # Add position data from player history
+            for i, pos in enumerate(player.field_position_history):
+                positions.append(
+                    {
+                        "x": pos[0] if pos else 50.0,
+                        "y": pos[1] if pos else 34.0,
+                        "player_id": player.player_id or f"player_{player.track_id}",
+                        "timestamp": i * 0.033,  # Approximate timestamp
+                    }
+                )
 
-                # Filter by source if specified
-                sources_to_check = [source_id] if source_id else player_data.keys()
+        return positions
 
-                for source_key in sources_to_check:
-                    if source_key in player_data:
-                        obs = player_data[source_key]
-                        if "field_position" in obs and obs["field_position"]:
-                            positions.append(obs["field_position"])
+    def get_ball_heatmap_data(self) -> List[Dict[str, Any]]:
+        """Get heatmap data for ball movement."""
+        positions = []
+        ball = self.ball
+
+        for i, pos in enumerate(ball.field_position_history):
+            positions.append(
+                {
+                    "x": pos[0] if pos else 52.5,
+                    "y": pos[1] if pos else 34.0,
+                    "timestamp": i * 0.033,
+                }
+            )
+
+        return positions
+
+    def get_player_heatmap_data(self, player_id: str) -> List[Dict[str, Any]]:
+        """Get heatmap data for a specific player."""
+        positions = []
+        player = self.get_player_by_id(player_id)
+
+        if player:
+            for i, pos in enumerate(player.field_position_history):
+                positions.append(
+                    {
+                        "x": pos[0] if pos else 50.0,
+                        "y": pos[1] if pos else 34.0,
+                        "timestamp": i * 0.033,
+                    }
+                )
 
         return positions
 

@@ -23,6 +23,9 @@ from .processors.team_classification.siglip_team_classifier import (
     SigLIPTeamAssignmentProcessor,
 )
 from .processors.team_classification.possession_analyzer import BallAssignmentProcessor
+from .processors.domain_conversion.detection_converter import (
+    DetectionConverterProcessor,
+)
 from .processors.match_analysis.speed_analyzer import SpeedProcessor
 from .processors.match_analysis.possession_tracker import BallControlProcessor
 from .processors.video_rendering.video_annotator import RendererProcessor
@@ -145,6 +148,9 @@ class VideoPipeline:
                 device=self.device,
             )
             self.processors.append(team_assignment_processor)
+
+        # Convert detections to domain objects (always needed for game analysis)
+        self.processors.append(DetectionConverterProcessor())
 
         # Ball tracking - if enabled
         if self.enable_ball_tracking:
