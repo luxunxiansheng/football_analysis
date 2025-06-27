@@ -53,42 +53,38 @@ class SigLIPTeamAssignmentProcessor(Processor):
             raise RuntimeError(f"Failed to load SigLIP model: {e}")
 
     def _extract_crops(self, video_data: Video) -> List[np.ndarray]:
-        """Extract player crops from video frames."""
+        """Extract player and goalkeeper crops from video frames using new Frame model."""
         crops = []
-
-        # Add progress bar for crop extraction
         frame_progress = tqdm(
             video_data.frames, desc="Extracting player crops", unit="frames"
         )
-
         for frame in frame_progress:
-            if not frame.detections:
+            if frame.raw_frame is None:
                 continue
-
             frame_crops = 0
-            for detection in frame.detections:
-                if detection.object_type != ObjectType.PLAYER:
+            for player in list(frame.players.values()) + list(
+                frame.goalkeepers.values()
+            ):
+                if (
+                    not hasattr(player, "pixel_position")
+                    or player.pixel_position is None
+                ):
                     continue
-
-                bbox = detection.bbox
-                x1, y1, x2, y2 = int(bbox.x1), int(bbox.y1), int(bbox.x2), int(bbox.y2)
+                cx, cy = map(int, player.pixel_position)
+                crop_size = 32  # Example size, adjust as needed
+                x1, y1 = max(0, cx - crop_size), max(0, cy - crop_size)
+                x2, y2 = cx + crop_size, cy + crop_size
                 h, w = frame.raw_frame.shape[:2]
-
-                # Validate and clip bounds
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w, x2), min(h, y2)
-
                 if x2 > x1 and y2 > y1:
                     crop = frame.raw_frame[y1:y2, x1:x2]
                     if crop.size > 0:
                         crops.append(crop)
                         frame_crops += 1
-
-            # Update progress bar description with current stats
             frame_progress.set_postfix(
                 {"Total crops": len(crops), "Frame crops": frame_crops}
             )
-
         frame_progress.close()
         print(
             f"✅ Extracted {len(crops)} player crops from {len(video_data.frames)} frames"
@@ -176,63 +172,54 @@ class SigLIPTeamAssignmentProcessor(Processor):
         print(f"🏆 Ready to assign players to 2 teams")
 
     def process(self, video_data: Video) -> Video:
-        """Assign team labels to players."""
+        """Assign team labels to players and goalkeepers using SigLIP model."""
         if not self._is_trained:
             print("⚠️ Model not trained yet. Training on provided data...")
             self.train(video_data)
-
         print("🏃‍♂️ Assigning team labels to players...")
-
-        # Add progress bar for frame processing
         frame_progress = tqdm(
             video_data.frames, desc="Processing frames", unit="frames"
         )
         total_assignments = 0
-
         for frame in frame_progress:
-            if not frame.detections:
+            if frame.raw_frame is None:
                 continue
-
-            player_crops, player_detections = [], []
-
-            # Extract player crops from current frame
-            for detection in frame.detections:
-                if detection.object_type != ObjectType.PLAYER:
+            player_crops, player_objs = [], []
+            for player in list(frame.players.values()) + list(
+                frame.goalkeepers.values()
+            ):
+                if (
+                    not hasattr(player, "pixel_position")
+                    or player.pixel_position is None
+                ):
                     continue
-
-                bbox = detection.bbox
-                x1, y1, x2, y2 = int(bbox.x1), int(bbox.y1), int(bbox.x2), int(bbox.y2)
+                cx, cy = map(int, player.pixel_position)
+                crop_size = 32
+                x1, y1 = max(0, cx - crop_size), max(0, cy - crop_size)
+                x2, y2 = cx + crop_size, cy + crop_size
                 h, w = frame.raw_frame.shape[:2]
-
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w, x2), min(h, y2)
-
                 if x2 > x1 and y2 > y1:
                     crop = frame.raw_frame[y1:y2, x1:x2]
                     if crop.size > 0:
                         player_crops.append(crop)
-                        player_detections.append(detection)
-
-            # Process players in current frame
+                        player_objs.append(player)
             if player_crops:
                 player_features = self._extract_features_silent(player_crops)
                 player_projections = self.reducer.transform(player_features)
                 team_labels = self.cluster_model.predict(player_projections)
-
                 frame_assignments = 0
-                for detection, team_id in zip(player_detections, team_labels):
-                    detection.team = int(team_id)
+                for player_obj, team_id in zip(player_objs, team_labels):
+                    player_obj.team_id = int(team_id)
                     frame_assignments += 1
                     total_assignments += 1
-
-                # Update progress bar with current stats
                 frame_progress.set_postfix(
                     {
                         "Frame players": frame_assignments,
                         "Total assigned": total_assignments,
                     }
                 )
-
         frame_progress.close()
         print(f"✅ Team assignment completed!")
         print(

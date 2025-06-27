@@ -37,13 +37,20 @@ class FieldTransformationProcessor(Processor):
         )
 
     def process(self, data: Video) -> Video:
-        for frame_data in data.frames:
-            detections = frame_data.detections or []
-            for detection in detections:
-                pixel_pos = detection.object_position
-                if pixel_pos is not None:
-                    field_pos = self.transform_point(tuple(pixel_pos))
-                    detection.field_position = field_pos
+        for frame in data.frames:
+            # Transform all tracked objects
+            for obj in (
+                list(frame.players.values())
+                + list(frame.goalkeepers.values())
+                + list(frame.referees.values())
+            ):
+                if obj.pixel_position is not None:
+                    field_pos = self.transform_point(tuple(obj.pixel_position))
+                    obj.field_position = field_pos
+            # Optionally, transform ball position
+            if frame.ball and frame.ball.pixel_position is not None:
+                field_pos = self.transform_point(tuple(frame.ball.pixel_position))
+                frame.ball.field_position = field_pos
         return data
 
     def transform_point(self, pixel_point: Tuple[float, float]) -> Tuple[float, float]:

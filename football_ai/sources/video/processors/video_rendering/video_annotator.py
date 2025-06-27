@@ -171,65 +171,53 @@ class RendererProcessor(Processor):
         self,
         frame_data: Frame,
         ball_control_data: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> np.ndarray:
         """
-        Render all overlays for a single frame.
+        Render all overlays for a single frame using the new Frame model.
         Args:
-            frame_data: FrameData object containing the frame and detections
+            frame_data: Frame object containing the frame and object collections
             ball_control_data: Ball control data from video metadata
         Returns:
             np.ndarray: annotated frame
         """
+        if frame_data.raw_frame is None:
+            raise ValueError("Frame has no raw_frame to render on.")
         frame = (
             frame_data.raw_frame.copy()
             if hasattr(frame_data.raw_frame, "copy")
             else np.array(frame_data.raw_frame)
         )
-        detections = frame_data.detections or []
 
-        # Filter detections by object type
-        player_detections = []
-        referee_detections = []
-        goalkeeper_detections = []
-        ball_detection = None
+        # Use new Frame model collections
+        player_objs = list(frame_data.players.values())
+        goalkeeper_objs = list(frame_data.goalkeepers.values())
+        referee_objs = list(frame_data.referees.values())
+        ball_obj = frame_data.ball
 
-        for detection in detections:
-            if detection.object_type == ObjectType.PLAYER:
-                player_detections.append(detection)
-            elif detection.object_type == ObjectType.GOALKEEPER:
-                goalkeeper_detections.append(detection)
-            elif detection.object_type == ObjectType.REFEREE:
-                referee_detections.append(detection)
-            elif detection.object_type == ObjectType.BALL:
-                if ball_detection is None:
-                    ball_detection = detection
-
-        # Optionally extract overlays from frame_analysis if needed
         annotated_frame = frame.copy()
 
-        # Check if we have any detections at all
-        total_detections = (
-            len(player_detections)
-            + len(goalkeeper_detections)
-            + len(referee_detections)
-            + (1 if ball_detection else 0)
+        total_objects = (
+            len(player_objs)
+            + len(goalkeeper_objs)
+            + len(referee_objs)
+            + (1 if ball_obj is not None else 0)
         )
 
-        # Draw detections
-        if player_detections:
-            self._draw_players(annotated_frame, player_detections)
+        # Draw objects
+        if player_objs:
+            self._draw_players(annotated_frame, player_objs)
 
-        if goalkeeper_detections:
-            self._draw_goalkeepers(annotated_frame, goalkeeper_detections)
+        if goalkeeper_objs:
+            self._draw_goalkeepers(annotated_frame, goalkeeper_objs)
 
-        if ball_detection:
-            self._draw_ball(annotated_frame, ball_detection)
+        if ball_obj is not None:
+            self._draw_ball(annotated_frame, ball_obj)
 
-        if referee_detections:
-            self._draw_referees(annotated_frame, referee_detections)
+        if referee_objs:
+            self._draw_referees(annotated_frame, referee_objs)
 
-        # If no detections found, draw a "No detections" message
-        if total_detections == 0:
+        # If no objects found, draw a "No detections" message
+        if total_objects == 0:
             self._draw_no_detections_message(annotated_frame)
 
         # Always draw ball control panel (even if empty)
@@ -268,16 +256,12 @@ class RendererProcessor(Processor):
             cv2.LINE_AA,
         )
 
-    def _draw_referees(self, frame, referee_detections):
-        """Draw referee detections with enhanced modern styling."""
-        for referee in referee_detections:
+    def _draw_referees(self, frame, referees):
+        """Draw referee objects with enhanced modern styling."""
+        for referee in referees:
             bbox = referee.bbox
             color = self.visual_config.REFEREE_COLOR
-
-            # Enhanced referee rectangle with rounded corners
             x1, y1, x2, y2 = int(bbox.x1), int(bbox.y1), int(bbox.x2), int(bbox.y2)
-
-            # Draw shadow
             shadow_offset = 3
             self._draw_rounded_rectangle(
                 frame,
@@ -286,15 +270,9 @@ class RendererProcessor(Processor):
                 (0, 0, 0),
                 2,
             )
-
-            # Draw main referee border
             self._draw_rounded_rectangle(frame, (x1, y1), (x2, y2), color, 3)
-
-            # Minimal track ID display for referee
-            track_id = referee.track_id
-
+            track_id = getattr(referee, "track_id", None)
             if track_id is not None:
-                # Simple text label for referee - less intrusive
                 text = "REF"
                 cv2.putText(
                     frame,
@@ -307,22 +285,16 @@ class RendererProcessor(Processor):
                     cv2.LINE_AA,
                 )
 
-    def _draw_goalkeepers(self, frame, goalkeeper_detections):
-        """Draw all goalkeeper detections with enhanced styling."""
-        for detection in goalkeeper_detections:
-            bbox = detection.bbox.as_list()
+    def _draw_goalkeepers(self, frame, goalkeepers):
+        """Draw all goalkeeper objects with enhanced styling."""
+        for goalkeeper in goalkeepers:
+            bbox = goalkeeper.bbox.as_list()
             color = self.visual_config.GOALKEEPER_COLOR
-
-            # Calculate positions
             y2 = int(bbox[3])
             x_center, _ = self._calculate_bbox_center(bbox)
             x_center = int(x_center)
-            width = int(bbox[2] - bbox[0])  # x2 - x1
-
-            # Draw enhanced ellipse with glow effect for goalkeeper
+            width = int(bbox[2] - bbox[0])
             glow_color = tuple(min(255, c + 50) for c in color)
-
-            # Shadow ellipse
             cv2.ellipse(
                 frame,
                 center=(x_center + 2, y2 + 2),
@@ -330,12 +302,10 @@ class RendererProcessor(Processor):
                 angle=0.0,
                 startAngle=-45,
                 endAngle=235,
-                color=(0, 100, 0),  # Dark green shadow
+                color=(0, 100, 0),
                 thickness=4,
                 lineType=cv2.LINE_AA,
             )
-
-            # Main ellipse with special goalkeeper styling
             cv2.ellipse(
                 frame,
                 center=(x_center, y2),
@@ -347,28 +317,19 @@ class RendererProcessor(Processor):
                 thickness=4,
                 lineType=cv2.LINE_AA,
             )
-
-            # Minimal track ID display for goalkeeper
-            track_id = detection.track_id
-
+            track_id = getattr(goalkeeper, "track_id", None)
             if track_id is not None:
-                # Small circle for goalkeeper
                 circle_radius = 12
                 circle_x = x_center
                 circle_y = y2 + 20
-
-                # Special goalkeeper circle with distinct look
                 cv2.circle(frame, (circle_x, circle_y), circle_radius, color, -1)
                 cv2.circle(
                     frame, (circle_x, circle_y), circle_radius, (255, 255, 255), 2
                 )
-
-                # GK text
                 text = "GK"
                 text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.3, 1)[0]
                 text_x = circle_x - text_size[0] // 2
                 text_y = circle_y + text_size[1] // 2
-
                 cv2.putText(
                     frame,
                     text,
@@ -380,29 +341,21 @@ class RendererProcessor(Processor):
                     cv2.LINE_AA,
                 )
 
-    def _draw_ball(self, frame, ball_detection):
-        """Draw a single ball detection with enhanced modern styling."""
-        if not ball_detection:
+    def _draw_ball(self, frame, ball):
+        """Draw a single ball object with enhanced modern styling."""
+        if not ball:
             return
-
-        bbox = ball_detection.bbox.as_list()
+        bbox = ball.bbox.as_list()
         x, y_top = self._calculate_bbox_center(bbox)
-        x, y_top = int(x), int(bbox[1])  # Use top of bbox
-
-        # Enhanced ball indicator with glowing effect
+        x, y_top = int(x), int(bbox[1])
         ball_color = self.visual_config.BALL_COLOR
         glow_color = tuple(min(255, c + 100) for c in ball_color)
-
-        # Draw multiple layers for glow effect
         for i, (radius, color, alpha) in enumerate(
             [(20, glow_color, 0.3), (15, ball_color, 0.6), (12, ball_color, 0.9)]
         ):
-            # Create a circle for glow layers
             overlay = frame.copy()
             cv2.circle(overlay, (x, y_top - 25), radius, color, -1)
             cv2.addWeighted(frame, 1 - alpha, overlay, alpha, 0, frame)
-
-        # Draw main ball triangle with shadow
         triangle_points = np.array(
             [
                 [x, y_top - 5],
@@ -410,22 +363,14 @@ class RendererProcessor(Processor):
                 [x + 12, y_top - 25],
             ]
         )
-
-        # Shadow
         shadow_points = triangle_points + [2, 2]
         cv2.fillPoly(frame, [shadow_points], (0, 0, 0))
-
-        # Main triangle
         cv2.fillPoly(frame, [triangle_points], ball_color)
         cv2.polylines(frame, [triangle_points], True, (255, 255, 255), 2, cv2.LINE_AA)
-
-        # Add "BALL" text with modern styling
         text = "BALL"
         text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
         text_x = x - text_size[0] // 2
         text_y = y_top - 35
-
-        # Background for text
         self._draw_rounded_rectangle(
             frame,
             (text_x - 8, text_y - text_size[1] - 4),
@@ -433,7 +378,6 @@ class RendererProcessor(Processor):
             (0, 0, 0),
             -1,
         )
-
         self._draw_text_with_shadow(
             frame,
             text,
@@ -443,13 +387,11 @@ class RendererProcessor(Processor):
             thickness=1,
         )
 
-    def _draw_players(self, frame, player_detections):
-        """Draw all player and goalkeeper detections with enhanced visuals."""
-        for detection in player_detections:
-            bbox = detection.bbox.as_list()
-
-            # Enhanced color scheme based on team
-            team = detection.team
+    def _draw_players(self, frame, players):
+        """Draw all player objects with enhanced visuals."""
+        for player in players:
+            bbox = player.bbox.as_list()
+            team = getattr(player, "team_id", None)
             if team == 1:
                 color = self.visual_config.TEAM_1_COLOR
                 team_name = "Team A"
@@ -459,18 +401,12 @@ class RendererProcessor(Processor):
             else:
                 color = (128, 128, 128)
                 team_name = "Unknown"
-
-            # Calculate positions
             y2 = int(bbox[3])
             x_center, _ = self._calculate_bbox_center(bbox)
             x_center = int(x_center)
-            width = int(bbox[2] - bbox[0])  # x2 - x1
-
-            # Draw enhanced ellipse with gradient effect
+            width = int(bbox[2] - bbox[0])
             ellipse_color = color
-            shadow_color = tuple(c // 3 for c in color)  # Darker shadow
-
-            # Draw shadow ellipse
+            shadow_color = tuple(c // 3 for c in color)
             cv2.ellipse(
                 frame,
                 center=(x_center + 2, y2 + 2),
@@ -482,8 +418,6 @@ class RendererProcessor(Processor):
                 thickness=3,
                 lineType=cv2.LINE_AA,
             )
-
-            # Draw main ellipse with anti-aliasing
             cv2.ellipse(
                 frame,
                 center=(x_center, y2),
@@ -495,28 +429,19 @@ class RendererProcessor(Processor):
                 thickness=3,
                 lineType=cv2.LINE_AA,
             )
-
-            # Enhanced track ID display
-            track_id = detection.track_id
-
+            track_id = getattr(player, "track_id", None)
             if track_id is not None:
-                # Minimal track ID - just a small circle with number
                 circle_radius = 12
                 circle_x = x_center
                 circle_y = y2 + 20
-
-                # Draw small background circle
                 cv2.circle(frame, (circle_x, circle_y), circle_radius, color, -1)
                 cv2.circle(
                     frame, (circle_x, circle_y), circle_radius, (255, 255, 255), 1
                 )
-
-                # Small centered text
                 text = f"{track_id}"
                 text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
                 text_x = circle_x - text_size[0] // 2
                 text_y = circle_y + text_size[1] // 2
-
                 cv2.putText(
                     frame,
                     text,
@@ -527,17 +452,13 @@ class RendererProcessor(Processor):
                     1,
                     cv2.LINE_AA,
                 )
+            self._draw_minimal_player_speed(frame, player, x_center, int(bbox[1]) - 10)
 
-            # Minimal speed display - just text, no background box
-            self._draw_minimal_player_speed(
-                frame, detection, x_center, int(bbox[1]) - 10
-            )
-
-    def _draw_minimal_player_speed(self, frame, detection, x_center, y_position):
+    def _draw_minimal_player_speed(self, frame, player, x_center, y_position):
         """
         Draw minimal speed information - just text without background boxes.
         """
-        speed = detection.speed
+        speed = getattr(player, "speed", None)
         if speed is not None:
             speed_text = f"{speed:.0f}"
             cv2.putText(
@@ -802,33 +723,21 @@ class RendererProcessor(Processor):
     def _draw_no_detections_message(self, frame):
         """Draw a message when no detections are found."""
         frame_height, frame_width = frame.shape[:2]
-
-        # Calculate center position
         center_x = frame_width // 2
         center_y = frame_height // 2
-
-        # Main message
         message = "NO DETECTIONS FOUND"
         text_size = cv2.getTextSize(message, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 3)[0]
         text_x = center_x - text_size[0] // 2
         text_y = center_y
-
-        # Background rectangle
         padding = 20
         bg_x1 = text_x - padding
         bg_y1 = text_y - text_size[1] - padding
         bg_x2 = text_x + text_size[0] + padding
         bg_y2 = text_y + padding
-
-        # Draw semi-transparent background
         overlay = frame.copy()
         cv2.rectangle(overlay, (bg_x1, bg_y1), (bg_x2, bg_y2), (0, 0, 0), -1)
         cv2.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
-
-        # Draw border
         cv2.rectangle(frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (255, 255, 0), 3)
-
-        # Draw main text
         self._draw_text_with_shadow(
             frame,
             message,
@@ -837,13 +746,10 @@ class RendererProcessor(Processor):
             color=(255, 255, 0),
             thickness=1,
         )
-
-        # Additional info
         info_text = "Check if object detection is working properly"
         info_size = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
         info_x = center_x - info_size[0] // 2
         info_y = center_y + 40
-
         self._draw_text_with_shadow(
             frame,
             info_text,
