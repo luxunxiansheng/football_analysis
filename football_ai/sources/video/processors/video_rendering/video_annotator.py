@@ -139,10 +139,8 @@ class RendererProcessor(Processor):
         if not video_data.frames:
             raise ValueError("No frames to render in VideoData.")
 
-        # Get ball control data from video custom data (fallback)
-        video_ball_control_data = (
-            video_data.custom.get("ball_control", {}) if video_data.custom else {}
-        )
+        # Get ball control data from video analysis_results (was: custom)
+        video_ball_control_data = video_data.analysis_results.get("ball_control", {})
 
         # Store rendered frames back in the original video_data object
         progress_bar = tqdm(video_data.frames, desc="Rendering frames", unit="frames")

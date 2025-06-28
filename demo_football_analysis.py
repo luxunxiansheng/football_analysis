@@ -33,6 +33,33 @@ if __name__ == "__main__":
             output_video_path=output_video,
         )
 
+        # DEBUG: Print detected players and ball per frame before creating the game
+        video = video_processor.loader.load_video(input_video, max_frames=10)
+        print("\n[DEBUG] Raw video loaded:")
+        for idx, frame in enumerate(video.frames):
+            print(
+                f"[Loader] Frame {idx}: Players={list(getattr(frame, 'players', {}).keys())}, Ball={'yes' if getattr(frame, 'ball', None) else 'no'}"
+            )
+
+        # Step-by-step processor debug
+        processors = video_processor.pipeline.processors
+        current_video = video
+        for proc_idx, processor in enumerate(processors):
+            print(
+                f"\n[DEBUG] Running processor {proc_idx+1}/{len(processors)}: {processor.__class__.__name__}"
+            )
+            try:
+                current_video = processor.process(current_video)
+                # Print summary for this processor
+                for idx, frame in enumerate(current_video.frames):
+                    print(
+                        f"[{processor.__class__.__name__}] Frame {idx}: Players={list(getattr(frame, 'players', {}).keys())}, Ball={'yes' if getattr(frame, 'ball', None) else 'no'}"
+                    )
+            except Exception as e:
+                print(f"[ERROR] Processor {processor.__class__.__name__} failed: {e}")
+                break
+
+        # Now create the game as before
         game = video_processor.create_game_from_video(
             video_path=input_video,
             home_team="Home Team",
