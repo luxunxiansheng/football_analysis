@@ -354,8 +354,8 @@ class VideoAnalysisProcessor:
 
     def _extract_team_data(self, game: Game, video: Video) -> None:
         """Extract team-level analysis data from video."""
-        # Extract team colors and formation data from custom metadata
-        team_analysis = video.custom.get("team_analysis", {})
+        # Extract team colors and formation data from analysis_results
+        team_analysis = video.analysis_results.get("team_analysis", {})
 
         for team_id, team_data in team_analysis.items():
             team = game.get_team_by_id(team_id)
@@ -377,8 +377,8 @@ class VideoAnalysisProcessor:
 
     def _extract_events(self, game: Game, video: Video) -> None:
         """Extract match events from video analysis."""
-        # Extract events from custom metadata
-        events = video.custom.get("detected_events", [])
+        # Extract events from analysis_results
+        events = video.analysis_results.get("detected_events", [])
 
         for event_data in events:
             event = game.add_event(

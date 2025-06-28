@@ -132,8 +132,7 @@ class Video:
     output_directory: Optional[str] = None
     exported_files: Dict[str, str] = field(default_factory=dict)  # type -> path
 
-    # Additional custom data
-    custom: Dict[str, Any] = field(default_factory=dict)
+    # Tags and annotations
     tags: List[str] = field(default_factory=list)
     annotations: Dict[str, Any] = field(default_factory=dict)
 
@@ -507,9 +506,11 @@ class Video:
         new_video.quality_metrics = self.quality_metrics.copy()
         new_video.output_directory = self.output_directory
         new_video.exported_files = self.exported_files.copy()
-        new_video.custom = self.custom.copy()
         new_video.tags = self.tags.copy()
         new_video.annotations = self.annotations.copy()
+        new_video.ball_control_stats = (
+            self.ball_control_stats.copy() if self.ball_control_stats else None
+        )
 
         # Optionally copy frames
         if include_frames:
