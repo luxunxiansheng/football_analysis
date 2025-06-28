@@ -34,14 +34,12 @@ class BallControlProcessor(Processor):
         self._total_frames_with_ball = 0
 
         # Use progress bar only if processing many frames (>50)
-        if len(data.frames) > 50:
-            progress_bar = tqdm(
+
+        progress_bar = tqdm(
                 data.frames, desc="Calculating ball control", unit="frames"
             )
-            frame_iterator = progress_bar
-        else:
-            frame_iterator = data.frames
-            progress_bar = None
+        frame_iterator = progress_bar
+
 
         for frame_data in frame_iterator:
             # Process frame and update running totals

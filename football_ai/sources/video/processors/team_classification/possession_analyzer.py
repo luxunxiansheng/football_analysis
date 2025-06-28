@@ -9,14 +9,11 @@ class BallAssignmentProcessor(Processor):
 
     def process(self, data: Video) -> Video:
         # Use progress bar only if processing many frames (>50)
-        if len(data.frames) > 50:
-            progress_bar = create_progress_bar(
+
+        progress_bar = create_progress_bar(
                 iterable=data.frames, desc="Ball assignment", unit="frames"
             )
-            frame_iterator = progress_bar
-        else:
-            frame_iterator = data.frames
-            progress_bar = None
+        frame_iterator = progress_bar
 
         for frame_data in frame_iterator:
             self._assign_ball_to_players(frame_data)
