@@ -37,13 +37,13 @@ class ObjectDetectionProcessor(Processor):
                 objects = self._detect_objects(frame)
                 for obj in objects:
                     if isinstance(obj, Player):
-                        frame_data.add_player(obj)
+                        frame_data.add_detected_player(obj)
                     elif isinstance(obj, Goalkeeper):
-                        frame_data.add_goalkeeper(obj)
+                        frame_data.add_detected_goalkeeper(obj)
                     elif isinstance(obj, Referee):
-                        frame_data.add_referee(obj)
+                        frame_data.add_detected_referee(obj)
                     elif isinstance(obj, Ball):
-                        frame_data.set_ball(obj)
+                        frame_data.set_detected_ball(obj)
 
         frames_progress_bar.close()
         return data

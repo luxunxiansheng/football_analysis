@@ -121,29 +121,39 @@ class TrackProcessor(Processor):
 
         for frame in frames_with_progress_bar:
             self.frame_count += 1
-            # Gather all objects to track
-            objects = (
-                list(frame.players.values())
-                + list(frame.goalkeepers.values())
-                + list(frame.referees.values())
-            )
-            if frame.ball:
-                objects.append(frame.ball)
-            if not objects:
-                continue
+            # Gather detected objects from detection stage
+            detected_players = getattr(frame, "detected_players", [])
+            detected_goalkeepers = getattr(frame, "detected_goalkeepers", [])
+            detected_referees = getattr(frame, "detected_referees", [])
+            detected_ball = getattr(frame, "detected_ball", None)
 
-            # Example: assign dummy track IDs (replace with real tracking logic)
-            for idx, obj in enumerate(objects):
-                obj.track_id = idx  # Replace with real tracker assignment
-                obj.track_confidence = 1.0  # Example confidence
+            # Assign unique track IDs (replace with real tracking logic)
+            for idx, player in enumerate(detected_players):
+                player.track_id = idx + 1  # Example: assign unique positive track_id
+                player.track_confidence = 1.0
+                frame.add_player(player)
+            for idx, goalkeeper in enumerate(detected_goalkeepers):
+                goalkeeper.track_id = idx + 1001  # Offset to avoid collision
+                goalkeeper.track_confidence = 1.0
+                frame.add_goalkeeper(goalkeeper)
+            for idx, referee in enumerate(detected_referees):
+                referee.track_id = idx + 2001
+                referee.track_confidence = 1.0
+                frame.add_referee(referee)
+            if detected_ball:
+                detected_ball.track_id = 9999
+                detected_ball.track_confidence = 1.0
+                frame.set_ball(detected_ball)
+
+            # Clear detection lists after tracking
+            frame.detected_players.clear()
+            frame.detected_goalkeepers.clear()
+            frame.detected_referees.clear()
+            frame.detected_ball = None
 
         frames_with_progress_bar.close()
-
-        # Post-process track IDs to optimize continuity and reduce fragmentation
         self.logger.info("Optimizing track IDs...")
         data = self._optimize_tracks(data)
-
-        # Log enhancement statistics (removed advanced filtering stats)
         return data
 
     # ===== INTEGRATED TRACK OPTIMIZATION METHODS =====

@@ -85,13 +85,23 @@ class Frame:
     players: Dict[int, Player] = dataclass_field(
         default_factory=dict
     )  # track_id -> Player
+    detected_players: List[Player] = dataclass_field(
+        default_factory=list
+    )  # detection stage only
     referees: Dict[int, Referee] = dataclass_field(
         default_factory=dict
     )  # track_id -> Referee
+    detected_referees: List[Referee] = dataclass_field(
+        default_factory=list
+    )  # detection stage only
     goalkeepers: Dict[int, Goalkeeper] = dataclass_field(
         default_factory=dict
     )  # track_id -> Goalkeeper
+    detected_goalkeepers: List[Goalkeeper] = dataclass_field(
+        default_factory=list
+    )  # detection stage only
     ball: Optional[Ball] = None
+    detected_ball: Optional[Ball] = None  # detection stage only
     ball_control: BallControl = dataclass_field(default_factory=BallControl)
 
     # Frame-level analytics
@@ -118,6 +128,22 @@ class Frame:
             self.frame_size = self.raw_frame.nbytes
 
     # Object management methods
+    def add_detected_player(self, player: Player) -> None:
+        """Add a detected Player object to the frame (detection stage only)."""
+        self.detected_players.append(player)
+
+    def add_detected_referee(self, referee: Referee) -> None:
+        """Add a detected Referee object to the frame (detection stage only)."""
+        self.detected_referees.append(referee)
+
+    def add_detected_goalkeeper(self, goalkeeper: Goalkeeper) -> None:
+        """Add a detected Goalkeeper object to the frame (detection stage only)."""
+        self.detected_goalkeepers.append(goalkeeper)
+
+    def set_detected_ball(self, ball: Ball) -> None:
+        """Set the detected Ball object for the frame (detection stage only)."""
+        self.detected_ball = ball
+
     def add_player(self, player: Player) -> None:
         """Add a Player object to the frame."""
         if player.track_id is None:
