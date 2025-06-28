@@ -259,7 +259,9 @@ class RendererProcessor(Processor):
         for referee in referees:
             bbox = referee.bbox
             color = self.visual_config.REFEREE_COLOR
-            x1, y1, x2, y2 = int(bbox.x1), int(bbox.y1), int(bbox.x2), int(bbox.y2)
+            if bbox is None:
+                continue
+            x1, y1, x2, y2 = [int(v) for v in bbox]
             shadow_offset = 3
             self._draw_rounded_rectangle(
                 frame,
@@ -286,12 +288,12 @@ class RendererProcessor(Processor):
     def _draw_goalkeepers(self, frame, goalkeepers):
         """Draw all goalkeeper objects with enhanced styling."""
         for goalkeeper in goalkeepers:
-            bbox = goalkeeper.bbox.as_list()
+            bbox = list(goalkeeper.bbox) if goalkeeper.bbox is not None else None
             color = self.visual_config.GOALKEEPER_COLOR
-            y2 = int(bbox[3])
-            x_center, _ = self._calculate_bbox_center(bbox)
+            y2 = int(bbox[3]) if bbox else 0
+            x_center, _ = self._calculate_bbox_center(bbox) if bbox else (0, 0)
             x_center = int(x_center)
-            width = int(bbox[2] - bbox[0])
+            width = int(bbox[2] - bbox[0]) if bbox else 0
             glow_color = tuple(min(255, c + 50) for c in color)
             cv2.ellipse(
                 frame,
@@ -341,9 +343,9 @@ class RendererProcessor(Processor):
 
     def _draw_ball(self, frame, ball):
         """Draw a single ball object with enhanced modern styling."""
-        if not ball:
+        if not ball or ball.bbox is None:
             return
-        bbox = ball.bbox.as_list()
+        bbox = list(ball.bbox)
         x, y_top = self._calculate_bbox_center(bbox)
         x, y_top = int(x), int(bbox[1])
         ball_color = self.visual_config.BALL_COLOR
@@ -388,7 +390,9 @@ class RendererProcessor(Processor):
     def _draw_players(self, frame, players):
         """Draw all player objects with enhanced visuals."""
         for player in players:
-            bbox = player.bbox.as_list()
+            if player.bbox is None:
+                continue
+            bbox = list(player.bbox)
             team = getattr(player, "team_id", None)
             if team == 1:
                 color = self.visual_config.TEAM_1_COLOR

@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 
+
 @dataclass
 class Player:
     """
@@ -31,6 +32,9 @@ class Player:
 
     # Detection data
     detection_confidence: Optional[float] = None
+    bbox: Optional[Tuple[float, float, float, float]] = (
+        None  # [x1, y1, x2, y2] for detection/tracking
+    )
     # Tracking data
     track_confidence: Optional[float] = None
     track_age: Optional[int] = None  # Number of frames tracked

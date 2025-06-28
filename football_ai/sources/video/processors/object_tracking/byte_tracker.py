@@ -1,7 +1,12 @@
-from supervision.tracker.byte_tracker import ByteTrack
 from collections import defaultdict
 import numpy as np
 from typing import Any, Dict, List, Union
+
+
+from supervision.detection.core import Detections
+
+# Import ByteTrack from its correct module for supervision 0.25.1
+from supervision.tracker.byte_tracker.core import ByteTrack
 
 from football_ai.utilities import (
     logging,
@@ -122,41 +127,39 @@ class TrackProcessor(Processor):
 
         for frame_idx, frame in enumerate(frames_with_progress_bar):
             self.frame_count += 1
-            # Gather detected objects from detection stage
             detected_players = getattr(frame, "detected_players", [])
             detected_goalkeepers = getattr(frame, "detected_goalkeepers", [])
             detected_referees = getattr(frame, "detected_referees", [])
             detected_ball = getattr(frame, "detected_ball", None)
 
-            # Prepare detections for ByteTrack: [x1, y1, x2, y2, score, class_id]
-            detections = []
+            # Prepare Detections object for ByteTrack
+            xyxy = []
+            confidence = []
+            class_id = []
             obj_refs = []  # (object, type_str)
             # Players
             for player in detected_players:
                 if hasattr(player, "bbox") and player.bbox is not None:
                     x1, y1, x2, y2 = player.bbox
-                    score = getattr(player, "detection_confidence", 1.0)
-                    detections.append(
-                        [x1, y1, x2, y2, score, 0]
-                    )  # class_id=0 for player
+                    xyxy.append([x1, y1, x2, y2])
+                    confidence.append(getattr(player, "detection_confidence", 1.0))
+                    class_id.append(0)
                     obj_refs.append((player, "player"))
             # Goalkeepers
             for goalkeeper in detected_goalkeepers:
                 if hasattr(goalkeeper, "bbox") and goalkeeper.bbox is not None:
                     x1, y1, x2, y2 = goalkeeper.bbox
-                    score = getattr(goalkeeper, "detection_confidence", 1.0)
-                    detections.append(
-                        [x1, y1, x2, y2, score, 1]
-                    )  # class_id=1 for goalkeeper
+                    xyxy.append([x1, y1, x2, y2])
+                    confidence.append(getattr(goalkeeper, "detection_confidence", 1.0))
+                    class_id.append(1)
                     obj_refs.append((goalkeeper, "goalkeeper"))
             # Referees
             for referee in detected_referees:
                 if hasattr(referee, "bbox") and referee.bbox is not None:
                     x1, y1, x2, y2 = referee.bbox
-                    score = getattr(referee, "detection_confidence", 1.0)
-                    detections.append(
-                        [x1, y1, x2, y2, score, 2]
-                    )  # class_id=2 for referee
+                    xyxy.append([x1, y1, x2, y2])
+                    confidence.append(getattr(referee, "detection_confidence", 1.0))
+                    class_id.append(2)
                     obj_refs.append((referee, "referee"))
             # Ball
             if (
@@ -165,60 +168,57 @@ class TrackProcessor(Processor):
                 and detected_ball.bbox is not None
             ):
                 x1, y1, x2, y2 = detected_ball.bbox
-                score = getattr(detected_ball, "detection_confidence", 1.0)
-                detections.append([x1, y1, x2, y2, score, 3])  # class_id=3 for ball
+                xyxy.append([x1, y1, x2, y2])
+                confidence.append(getattr(detected_ball, "detection_confidence", 1.0))
+                class_id.append(3)
                 obj_refs.append((detected_ball, "ball"))
 
-            if len(detections) > 0:
-                dets_np = np.array(detections, dtype=np.float32)
+            if len(xyxy) > 0:
+                dets = Detections(
+                    xyxy=np.array(xyxy, dtype=np.float32),
+                    confidence=np.array(confidence, dtype=np.float32),
+                    class_id=np.array(class_id, dtype=int),
+                )
             else:
-                dets_np = np.zeros((0, 6), dtype=np.float32)
+                dets = Detections.empty()
 
             # Run ByteTrack
-            tracks = self.tracker.update_with_detections(dets_np)
-            # tracks: list of Track objects with .track_id, .bbox, .score, .class_id
+            tracked = self.tracker.update_with_detections(dets)
+            # tracked: Detections object with .xyxy, .confidence, .class_id, .tracker_id
 
-            # Assign track IDs to objects and add to frame collections
+            if tracked is None or not hasattr(tracked, "xyxy") or tracked.xyxy is None:
+                continue  # No tracks for this frame, skip
+
             used = set()
-            for track in tracks:
-                class_id = int(getattr(track, "class_id", 0))
-                track_id = int(getattr(track, "track_id", -1))
-                score = float(getattr(track, "score", 1.0))
-                bbox = getattr(track, "bbox", None)
+            for i in range(len(tracked.xyxy)):
+                bbox = tracked.xyxy[i]
+                conf = tracked.confidence[i]
+                cid = tracked.class_id[i]
+                tid = tracked.tracker_id[i] if hasattr(tracked, "tracker_id") else None
                 # Find the matching detected object by class and bbox
-                for i, (obj, obj_type) in enumerate(obj_refs):
-                    if i in used:
+                for j, (obj, obj_type) in enumerate(obj_refs):
+                    if j in used:
                         continue
-                    # Match by class and bbox
-                    if obj_type == "player" and class_id == 0:
-                        pass
-                    elif obj_type == "goalkeeper" and class_id == 1:
-                        pass
-                    elif obj_type == "referee" and class_id == 2:
-                        pass
-                    elif obj_type == "ball" and class_id == 3:
-                        pass
-                    else:
-                        continue
-                    # Compare bbox (allow small tolerance)
                     if (
-                        bbox is not None
-                        and hasattr(obj, "bbox")
-                        and obj.bbox is not None
+                        (obj_type == "player" and cid == 0)
+                        or (obj_type == "goalkeeper" and cid == 1)
+                        or (obj_type == "referee" and cid == 2)
+                        or (obj_type == "ball" and cid == 3)
                     ):
-                        if np.allclose(np.array(bbox), np.array(obj.bbox), atol=2):
-                            obj.track_id = track_id
-                            obj.track_confidence = score
-                            if obj_type == "player":
-                                frame.add_player(obj)
-                            elif obj_type == "goalkeeper":
-                                frame.add_goalkeeper(obj)
-                            elif obj_type == "referee":
-                                frame.add_referee(obj)
-                            elif obj_type == "ball":
-                                frame.set_ball(obj)
-                            used.add(i)
-                            break
+                        if hasattr(obj, "bbox") and obj.bbox is not None:
+                            if np.allclose(np.array(bbox), np.array(obj.bbox), atol=2):
+                                obj.track_id = int(tid) if tid is not None else -1
+                                obj.track_confidence = float(conf)
+                                if obj_type == "player":
+                                    frame.add_player(obj)
+                                elif obj_type == "goalkeeper":
+                                    frame.add_goalkeeper(obj)
+                                elif obj_type == "referee":
+                                    frame.add_referee(obj)
+                                elif obj_type == "ball":
+                                    frame.set_ball(obj)
+                                used.add(j)
+                                break
             # Clear detection lists after tracking
             frame.detected_players.clear()
             frame.detected_goalkeepers.clear()

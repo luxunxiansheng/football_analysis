@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
+from supervision.detection.core import Detections
 
 
 @dataclass
@@ -89,6 +90,9 @@ class Goalkeeper:
     frame_timestamp: Optional[float] = None
     team_assignment_confidence: Optional[float] = None
     position_estimation_confidence: Optional[float] = None
+    bbox: Optional[Tuple[float, float, float, float]] = (
+        None  # [x1, y1, x2, y2] for detection/tracking
+    )
 
     def update_position(
         self,

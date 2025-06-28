@@ -63,6 +63,9 @@ class Referee:
     # Additional custom data
     frame_timestamp: Optional[float] = None
     position_estimation_confidence: Optional[float] = None
+    bbox: Optional[Tuple[float, float, float, float]] = (
+        None  # [x1, y1, x2, y2] for detection/tracking
+    )
 
     def update_position(
         self,

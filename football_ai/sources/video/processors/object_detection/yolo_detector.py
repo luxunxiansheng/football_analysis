@@ -70,30 +70,35 @@ class ObjectDetectionProcessor(Processor):
             x1, y1, x2, y2 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
             confidence = float(conf)
             pixel_pos = ((x1 + x2) / 2, (y1 + y2) / 2)
+            bbox = (x1, y1, x2, y2)
             if class_name == "player":
                 obj = Player(
                     track_id=-1,
                     pixel_position=pixel_pos,
                     detection_confidence=confidence,
                 )
+                obj.bbox = bbox
             elif class_name == "goalkeeper":
                 obj = Goalkeeper(
                     track_id=-1,
                     pixel_position=pixel_pos,
                     detection_confidence=confidence,
                 )
+                obj.bbox = bbox
             elif class_name == "referee":
                 obj = Referee(
                     track_id=-1,
                     pixel_position=pixel_pos,
                     detection_confidence=confidence,
                 )
+                obj.bbox = bbox
             elif class_name == "ball":
                 obj = Ball(
                     track_id=-1,
                     pixel_position=pixel_pos,
                     detection_confidence=confidence,
                 )
+                obj.bbox = bbox
             else:
                 continue
             objects.append(obj)
