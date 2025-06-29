@@ -27,7 +27,6 @@ from .processors.domain_conversion.detection_converter import (
     DetectionConverterProcessor,
 )
 from .processors.match_analysis.speed_analyzer import SpeedProcessor
-from .processors.match_analysis.possession_tracker import BallControlProcessor
 from .processors.video_rendering.video_annotator import RendererProcessor
 from .processors.video_export.video_exporter import VideoWriterProcessor
 
@@ -159,7 +158,6 @@ class VideoPipeline:
                     max_distance=50.0  # Reasonable default distance
                 )
             )
-            self.processors.append(BallControlProcessor())
 
         # Analysis processors
         self.processors.append(SpeedProcessor())

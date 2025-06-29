@@ -129,15 +129,7 @@ class TestEndToEndVideoPipeline(unittest.TestCase):
         )
         self.assertIsInstance(field_transformed_video, Video)
         # Step 4: Ball Control Processor
-        try:
-            from football_ai.sources.video.processors.match_analysis.possession_tracker import (
-                BallControlProcessor,
-            )
-        except ImportError:
-            self.skipTest("BallControlProcessor could not be imported.")
-        ball_control_processor = BallControlProcessor()
-        ball_control_video = ball_control_processor.process(field_transformed_video)
-        self.assertIsInstance(ball_control_video, Video)
+        # Removed BallControlProcessor import (deprecated, use Ball class instead)
         # Step 5: Team Assignment (SigLIP)
         try:
             from football_ai.sources.video.processors.team_classification.siglip_team_classifier import (

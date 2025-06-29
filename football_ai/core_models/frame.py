@@ -8,7 +8,6 @@ from .referee import Referee
 from .goalkeeper import Goalkeeper
 from .ball import Ball
 from .field import Field
-from .ball_control import BallControl
 
 
 @dataclass
@@ -102,7 +101,6 @@ class Frame:
     )  # detection stage only
     ball: Optional[Ball] = None
     detected_ball: Optional[Ball] = None  # detection stage only
-    ball_control: BallControl = dataclass_field(default_factory=BallControl)
 
     # Frame-level analytics
     frame_quality_score: Optional[float] = None  # Overall frame quality (0-1)

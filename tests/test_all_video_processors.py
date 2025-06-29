@@ -15,9 +15,6 @@ from football_ai.sources.video.processors.coordinate_transformation.coordinate_t
 from football_ai.sources.video.processors.team_classification.siglip_team_classifier import (
     SigLIPTeamAssignmentProcessor,
 )
-from football_ai.sources.video.processors.match_analysis.possession_tracker import (
-    BallControlProcessor,
-)
 
 VIDEO_PATH = "input_videos/08fd33_4.mp4"
 SIGLIP_MODEL_PATH = "models/embed/siglip-base-patch16-224"
@@ -99,30 +96,6 @@ class TestSigLIPTeamAssignmentProcessor(unittest.TestCase):
         result = processor.process(video)
         self.assertIsInstance(result, Video)
         # We can't guarantee assignment, but the processor should run without error
-
-
-class TestBallControlProcessor(unittest.TestCase):
-    def test_ball_control(self):
-        if not os.path.exists(VIDEO_PATH):
-            self.skipTest(f"Test video not found: {VIDEO_PATH}")
-        loader = VideoLoader(log_level="ERROR")
-        video = loader.load_video(VIDEO_PATH, max_frames=2)
-        # Add players and set ball control for testing
-        for frame in video.frames:
-            frame.players = {
-                1: Player(track_id=1, team_id=1, pixel_position=(10, 10)),
-                2: Player(track_id=2, team_id=2, pixel_position=(100, 100)),
-            }
-            from football_ai.core_models.ball import Ball
-
-            frame.ball = Ball(
-                track_id=1, pixel_position=(20, 20), controlling_player_id=1
-            )
-            frame.ball.possession_team_id = 1
-        processor = BallControlProcessor()
-        result = processor.process(video)
-        self.assertIsInstance(result, Video)
-        # We can't guarantee stats, but the processor should run without error
 
 
 if __name__ == "__main__":
